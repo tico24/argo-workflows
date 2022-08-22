@@ -2,7 +2,8 @@ package main
 
 import (
 	"os"
-	"os/exec"
+
+	"github.com/argoproj/argo-workflows/v3/util/errors"
 
 	// load authentication plugin for obtaining credentials from cloud providers.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -14,14 +15,14 @@ import (
 func main() {
 	err := commands.NewRootCommand().Execute()
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
+		if exitError, ok := err.(errors.Exited); ok {
 			if exitError.ExitCode() >= 0 {
 				os.Exit(exitError.ExitCode())
 			} else {
 				os.Exit(137) // probably SIGTERM or SIGKILL
 			}
 		} else {
-			util.WriteTeriminateMessage(err.Error()) // we don't want to overwrite any other message
+			util.WriteTerminateMessage(err.Error()) // we don't want to overwrite any other message
 			println(err.Error())
 			os.Exit(64)
 		}

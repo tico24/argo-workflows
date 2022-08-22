@@ -3,6 +3,8 @@ package logs
 import (
 	"bufio"
 	"context"
+	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -31,6 +33,8 @@ type request interface {
 	GetName() string
 	GetPodName() string
 	GetLogOptions() *corev1.PodLogOptions
+	GetGrep() string
+	GetSelector() string
 }
 
 type sender interface {
@@ -44,13 +48,28 @@ func WorkflowLogs(ctx context.Context, wfClient versioned.Interface, kubeClient 
 		return err
 	}
 
+	rx, err := regexp.Compile(req.GetGrep())
+	if err != nil {
+		return fmt.Errorf("failed to compile %q: %w", req.GetGrep(), err)
+	}
+
 	podInterface := kubeClient.CoreV1().Pods(req.GetNamespace())
 
 	logCtx := log.WithFields(log.Fields{"workflow": req.GetName(), "namespace": req.GetNamespace()})
 
-	// we create a watch on the pods labelled with the workflow name,
-	// but we also filter by pod name if that was requested
-	podListOptions := metav1.ListOptions{LabelSelector: common.LabelKeyWorkflow + "=" + req.GetName()}
+	var podListOptions metav1.ListOptions
+
+	// we add selector if cli specify the pod selector when using logs
+	if req.GetSelector() != "" {
+		podListOptions = metav1.ListOptions{LabelSelector: common.LabelKeyWorkflow + "=" + req.GetName() + "," + req.GetSelector()}
+
+	} else {
+		// we create a watch on the pods labelled with the workflow name,
+		// but we also filter by pod name if that was requested
+		podListOptions = metav1.ListOptions{LabelSelector: common.LabelKeyWorkflow + "=" + req.GetName()}
+
+	}
+
 	if req.GetPodName() != "" {
 		podListOptions.FieldSelector = "metadata.name=" + req.GetPodName()
 	}
@@ -114,8 +133,10 @@ func WorkflowLogs(ctx context.Context, wfClient versioned.Interface, kubeClient 
 						if req.GetLogOptions().Timestamps {
 							content = line
 						}
-						logCtx.WithFields(log.Fields{"timestamp": timestamp, "content": content}).Debug("Log line")
-						unsortedEntries <- logEntry{podName: podName, content: content, timestamp: timestamp}
+						if rx.MatchString(content) { // this means we filter the lines in the server, but will still incur the cost of retrieving them from Kubernetes
+							logCtx.WithFields(log.Fields{"timestamp": timestamp, "content": content}).Debug("Log line")
+							unsortedEntries <- logEntry{podName: podName, content: content, timestamp: timestamp}
+						}
 					}
 				}
 				logCtx.Debug("No more log lines to stream")

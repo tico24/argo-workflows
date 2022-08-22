@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"regexp"
 
 	sv1 "github.com/argoproj/argo-events/pkg/apis/sensor/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -55,14 +54,13 @@ func (s *sensorServer) SensorsLogs(in *sensorpkg.SensorsLogsRequest, svr sensorp
 	if in.Name != "" {
 		labelSelector += "=" + in.Name
 	}
-	grep, err := regexp.Compile(in.Grep)
-	if err != nil {
-		return err
-	}
+	ctx := svr.Context()
 	return logs.LogPods(
-		svr.Context(),
+		ctx,
+		auth.GetKubeClient(ctx),
 		in.Namespace,
 		labelSelector,
+		in.Grep,
 		in.PodLogOptions,
 		func(pod *corev1.Pod, data []byte) error {
 			now := metav1.Now()
@@ -75,9 +73,6 @@ func (s *sensorServer) SensorsLogs(in *sensorpkg.SensorsLogsRequest, svr sensorp
 			}
 			_ = json.Unmarshal(data, e)
 			if in.TriggerName != "" && in.TriggerName != e.TriggerName {
-				return nil
-			}
-			if !grep.MatchString(e.Msg) {
 				return nil
 			}
 			return svr.Send(e)

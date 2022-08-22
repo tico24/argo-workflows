@@ -9,7 +9,9 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
+	nruntime "runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers/internalinterfaces"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
@@ -167,7 +168,7 @@ func IsWorkflowCompleted(wf *wfv1.Workflow) bool {
 	return false
 }
 
-// SubmitWorkflow validates and submit a single workflow and override some of the fields of the workflow
+// SubmitWorkflow validates and submits a single workflow and overrides some of the fields of the workflow
 func SubmitWorkflow(ctx context.Context, wfIf v1alpha1.WorkflowInterface, wfClientset wfclientset.Interface, namespace string, wf *wfv1.Workflow, opts *wfv1.SubmitOpts) (*wfv1.Workflow, error) {
 	err := ApplySubmitOpts(wf, opts)
 	if err != nil {
@@ -176,7 +177,7 @@ func SubmitWorkflow(ctx context.Context, wfIf v1alpha1.WorkflowInterface, wfClie
 	wftmplGetter := templateresolution.WrapWorkflowTemplateInterface(wfClientset.ArgoprojV1alpha1().WorkflowTemplates(namespace))
 	cwftmplGetter := templateresolution.WrapClusterWorkflowTemplateInterface(wfClientset.ArgoprojV1alpha1().ClusterWorkflowTemplates())
 
-	_, err = validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, wf, validate.ValidateOpts{})
+	err = validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, wf, validate.ValidateOpts{Submit: true})
 	if err != nil {
 		return nil, err
 	}
@@ -208,13 +209,13 @@ func CreateServerDryRun(ctx context.Context, wf *wfv1.Workflow, wfClientset wfcl
 	return wf, err
 }
 
-func PopulateSubmitOpts(command *cobra.Command, submitOpts *wfv1.SubmitOpts, includeDryRun bool) {
+func PopulateSubmitOpts(command *cobra.Command, submitOpts *wfv1.SubmitOpts, parameterFile *string, includeDryRun bool) {
 	command.Flags().StringVar(&submitOpts.Name, "name", "", "override metadata.name")
 	command.Flags().StringVar(&submitOpts.GenerateName, "generate-name", "", "override metadata.generateName")
 	command.Flags().StringVar(&submitOpts.Entrypoint, "entrypoint", "", "override entrypoint")
 	command.Flags().StringArrayVarP(&submitOpts.Parameters, "parameter", "p", []string{}, "pass an input parameter")
 	command.Flags().StringVar(&submitOpts.ServiceAccount, "serviceaccount", "", "run all pods in the workflow using specified serviceaccount")
-	command.Flags().StringVarP(&submitOpts.ParameterFile, "parameter-file", "f", "", "pass a file containing all input parameters")
+	command.Flags().StringVarP(parameterFile, "parameter-file", "f", "", "pass a file containing all input parameters")
 	command.Flags().StringVarP(&submitOpts.Labels, "labels", "l", "", "Comma separated labels to apply to the workflow. Will override previous values.")
 
 	if includeDryRun {
@@ -225,6 +226,9 @@ func PopulateSubmitOpts(command *cobra.Command, submitOpts *wfv1.SubmitOpts, inc
 
 // Apply the Submit options into workflow object
 func ApplySubmitOpts(wf *wfv1.Workflow, opts *wfv1.SubmitOpts) error {
+	if wf == nil {
+		return fmt.Errorf("workflow cannot be nil")
+	}
 	if opts == nil {
 		opts = &wfv1.SubmitOpts{}
 	}
@@ -234,6 +238,14 @@ func ApplySubmitOpts(wf *wfv1.Workflow, opts *wfv1.SubmitOpts) error {
 	if opts.ServiceAccount != "" {
 		wf.Spec.ServiceAccountName = opts.ServiceAccount
 	}
+	if opts.PodPriorityClassName != "" {
+		wf.Spec.PodPriorityClassName = opts.PodPriorityClassName
+	}
+
+	if opts.Priority != nil {
+		wf.Spec.Priority = opts.Priority
+	}
+
 	wfLabels := wf.GetLabels()
 	if wfLabels == nil {
 		wfLabels = make(map[string]string)
@@ -263,66 +275,9 @@ func ApplySubmitOpts(wf *wfv1.Workflow, opts *wfv1.SubmitOpts) error {
 		}
 	}
 	wf.SetAnnotations(wfAnnotations)
-	if len(opts.Parameters) > 0 || opts.ParameterFile != "" {
-		newParams := make([]wfv1.Parameter, 0)
-		passedParams := make(map[string]bool)
-		for _, paramStr := range opts.Parameters {
-			parts := strings.SplitN(paramStr, "=", 2)
-			if len(parts) != 2 {
-				return fmt.Errorf("expected parameter of the form: NAME=VALUE. Received: %s", paramStr)
-			}
-			param := wfv1.Parameter{Name: parts[0], Value: wfv1.AnyStringPtr(parts[1])}
-			newParams = append(newParams, param)
-			passedParams[param.Name] = true
-		}
-
-		// Add parameters from a parameter-file, if one was provided
-		if opts.ParameterFile != "" {
-			var body []byte
-			var err error
-			if cmdutil.IsURL(opts.ParameterFile) {
-				body, err = ReadFromUrl(opts.ParameterFile)
-				if err != nil {
-					return errors.InternalWrapError(err)
-				}
-			} else {
-				body, err = ioutil.ReadFile(opts.ParameterFile)
-				if err != nil {
-					return errors.InternalWrapError(err)
-				}
-			}
-
-			yamlParams := map[string]json.RawMessage{}
-			err = yaml.Unmarshal(body, &yamlParams)
-			if err != nil {
-				return errors.InternalWrapError(err)
-			}
-
-			for k, v := range yamlParams {
-				// We get quoted strings from the yaml file.
-				value, err := strconv.Unquote(string(v))
-				if err != nil {
-					// the string is already clean.
-					value = string(v)
-				}
-				param := wfv1.Parameter{Name: k, Value: wfv1.AnyStringPtr(value)}
-				if _, ok := passedParams[param.Name]; ok {
-					// this parameter was overridden via command line
-					continue
-				}
-				newParams = append(newParams, param)
-				passedParams[param.Name] = true
-			}
-		}
-
-		for _, param := range wf.Spec.Arguments.Parameters {
-			if _, ok := passedParams[param.Name]; ok {
-				// this parameter was overridden via command line
-				continue
-			}
-			newParams = append(newParams, param)
-		}
-		wf.Spec.Arguments.Parameters = newParams
+	err := overrideParameters(wf, opts.Parameters)
+	if err != nil {
+		return err
 	}
 	if opts.GenerateName != "" {
 		wf.ObjectMeta.GenerateName = opts.GenerateName
@@ -332,6 +287,64 @@ func ApplySubmitOpts(wf *wfv1.Workflow, opts *wfv1.SubmitOpts) error {
 	}
 	if opts.OwnerReference != nil {
 		wf.SetOwnerReferences(append(wf.GetOwnerReferences(), *opts.OwnerReference))
+	}
+	return nil
+}
+
+func overrideParameters(wf *wfv1.Workflow, parameters []string) error {
+	if len(parameters) > 0 {
+		newParams := make([]wfv1.Parameter, 0)
+		passedParams := make(map[string]bool)
+		for _, paramStr := range parameters {
+			parts := strings.SplitN(paramStr, "=", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("expected parameter of the form: NAME=VALUE. Received: %s", paramStr)
+			}
+			param := wfv1.Parameter{Name: parts[0], Value: wfv1.AnyStringPtr(parts[1])}
+			newParams = append(newParams, param)
+			passedParams[param.Name] = true
+		}
+		for _, param := range wf.Spec.Arguments.Parameters {
+			if _, ok := passedParams[param.Name]; ok {
+				// this parameter was overridden via command line
+				continue
+			}
+			newParams = append(newParams, param)
+		}
+		wf.Spec.Arguments.Parameters = newParams
+	}
+	return nil
+}
+
+func ReadParametersFile(file string, opts *wfv1.SubmitOpts) error {
+	var body []byte
+	var err error
+	if cmdutil.IsURL(file) {
+		body, err = ReadFromUrl(file)
+		if err != nil {
+			return err
+		}
+	} else {
+		body, err = ioutil.ReadFile(file)
+		if err != nil {
+			return err
+		}
+	}
+
+	yamlParams := map[string]json.RawMessage{}
+	err = yaml.Unmarshal(body, &yamlParams)
+	if err != nil {
+		return err
+	}
+
+	for k, v := range yamlParams {
+		// We get quoted strings from the yaml file.
+		value, err := strconv.Unquote(string(v))
+		if err != nil {
+			// the string is already clean.
+			value = string(v)
+		}
+		opts.Parameters = append(opts.Parameters, fmt.Sprintf("%s=%s", k, value))
 	}
 	return nil
 }
@@ -430,6 +443,7 @@ func SelectorMatchesNode(selector fields.Selector, node wfv1.NodeStatus) bool {
 		"templateName": node.TemplateName,
 		"phase":        string(node.Phase),
 		"name":         node.Name,
+		"id":           node.ID,
 	}
 	if node.TemplateRef != nil {
 		nodeFields["templateRef.name"] = node.TemplateRef.Name
@@ -473,8 +487,8 @@ func AddParamToGlobalScope(wf *wfv1.Workflow, log *log.Entry, param wfv1.Paramet
 		wf.Status.Outputs.Parameters = append(wf.Status.Outputs.Parameters, gParam)
 		wfUpdated = true
 	} else {
-		prevVal := *wf.Status.Outputs.Parameters[index].Value
-		if prevVal != *param.Value {
+		prevVal := wf.Status.Outputs.Parameters[index].Value
+		if prevVal == nil || (param.Value != nil && *prevVal != *param.Value) {
 			log.Infof("overwriting %s: '%s' -> '%s'", paramName, wf.Status.Outputs.Parameters[index].Value, param.Value)
 			wf.Status.Outputs.Parameters[index].Value = param.Value
 			wfUpdated = true
@@ -579,16 +593,22 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// generates an insecure random string
 func randString(n int) string {
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[rand.Intn(len(letters))] //nolint:gosec
 	}
 	return string(b)
 }
 
+// RandSuffix generates a random suffix suitable for suffixing resource name.
+func RandSuffix() string {
+	return randString(5)
+}
+
 // FormulateResubmitWorkflow formulate a new workflow from a previous workflow, optionally re-using successful nodes
-func FormulateResubmitWorkflow(wf *wfv1.Workflow, memoized bool) (*wfv1.Workflow, error) {
+func FormulateResubmitWorkflow(wf *wfv1.Workflow, memoized bool, parameters []string) (*wfv1.Workflow, error) {
 	newWF := wfv1.Workflow{}
 	newWF.TypeMeta = wf.TypeMeta
 
@@ -607,7 +627,7 @@ func FormulateResubmitWorkflow(wf *wfv1.Workflow, memoized bool) (*wfv1.Workflow
 		default:
 			return nil, errors.Errorf(errors.CodeBadRequest, "workflow must be Failed/Error to resubmit in memoized mode")
 		}
-		newWF.ObjectMeta.Name = newWF.ObjectMeta.GenerateName + randString(5)
+		newWF.ObjectMeta.Name = newWF.ObjectMeta.GenerateName + RandSuffix()
 	}
 
 	// carry over the unmodified spec
@@ -644,6 +664,17 @@ func FormulateResubmitWorkflow(wf *wfv1.Workflow, memoized bool) (*wfv1.Workflow
 
 	// Setting OwnerReference from original Workflow
 	newWF.OwnerReferences = append(newWF.OwnerReferences, wf.OwnerReferences...)
+
+	// Override parameters
+	if parameters != nil {
+		if _, ok := wf.ObjectMeta.Labels[common.LabelKeyPreviousWorkflowName]; ok || memoized {
+			log.Warnln("Overriding parameters on memoized or resubmitted workflows may have unexpected results")
+		}
+		err := overrideParameters(&newWF, parameters)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if !memoized {
 		return &newWF, nil
@@ -714,37 +745,36 @@ func convertNodeID(newWf *wfv1.Workflow, regex *regexp.Regexp, oldNodeID string,
 	return newWf.NodeID(newNodeName)
 }
 
-// RetryWorkflow updates a workflow, deleting all failed steps as well as the onExit node (and children)
-func RetryWorkflow(ctx context.Context, kubeClient kubernetes.Interface, hydrator hydrator.Interface, wfClient v1alpha1.WorkflowInterface, name string, restartSuccessful bool, nodeFieldSelector string) (*wfv1.Workflow, error) {
-	var updated *wfv1.Workflow
-	err := waitutil.Backoff(retry.DefaultRetry, func() (bool, error) {
-		var err error
-		updated, err = retryWorkflow(ctx, kubeClient, hydrator, wfClient, name, restartSuccessful, nodeFieldSelector)
-		return !errorsutil.IsTransientErr(err), err
-	})
-	if err != nil {
-		return nil, err
+func getDescendantNodeIDs(wf *wfv1.Workflow, node wfv1.NodeStatus) []string {
+	var descendantNodeIDs []string
+	descendantNodeIDs = append(descendantNodeIDs, node.Children...)
+	for _, child := range node.Children {
+		descendantNodeIDs = append(descendantNodeIDs, getDescendantNodeIDs(wf, wf.Status.Nodes[child])...)
 	}
-	return updated, err
+	return descendantNodeIDs
 }
 
-func retryWorkflow(ctx context.Context, kubeClient kubernetes.Interface, hydrator hydrator.Interface, wfClient v1alpha1.WorkflowInterface, name string, restartSuccessful bool, nodeFieldSelector string) (*wfv1.Workflow, error) {
-	wf, err := wfClient.Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
+func deletePodNodeDuringRetryWorkflow(wf *wfv1.Workflow, node wfv1.NodeStatus, deletedPods map[string]bool, podsToDelete []string) (map[string]bool, []string) {
+	templateName := getTemplateFromNode(node)
+	version := GetWorkflowPodNameVersion(wf)
+	podName := PodName(wf.Name, node.Name, templateName, node.ID, version)
+	if _, ok := deletedPods[podName]; !ok {
+		deletedPods[podName] = true
+		podsToDelete = append(podsToDelete, podName)
 	}
+	return deletedPods, podsToDelete
+}
+
+// FormulateRetryWorkflow formulates a previous workflow to be retried, deleting all failed steps as well as the onExit node (and children)
+func FormulateRetryWorkflow(ctx context.Context, wf *wfv1.Workflow, restartSuccessful bool, nodeFieldSelector string, parameters []string) (*wfv1.Workflow, []string, error) {
+
 	switch wf.Status.Phase {
 	case wfv1.WorkflowFailed, wfv1.WorkflowError:
 	default:
-		return nil, errors.Errorf(errors.CodeBadRequest, "workflow must be Failed/Error to retry")
-	}
-	err = hydrator.Hydrate(wf)
-	if err != nil {
-		return nil, err
+		return nil, nil, errors.Errorf(errors.CodeBadRequest, "workflow must be Failed/Error to retry")
 	}
 
 	newWF := wf.DeepCopy()
-	podIf := kubeClient.CoreV1().Pods(wf.ObjectMeta.Namespace)
 
 	// Delete/reset fields which indicate workflow completed
 	delete(newWF.Labels, common.LabelKeyCompleted)
@@ -761,16 +791,28 @@ func retryWorkflow(ctx context.Context, kubeClient kubernetes.Interface, hydrato
 		// if it was terminated, unset the deadline
 		newWF.Spec.ActiveDeadlineSeconds = nil
 	}
+	// Override parameters
+	if parameters != nil {
+		if _, ok := wf.ObjectMeta.Labels[common.LabelKeyPreviousWorkflowName]; ok {
+			log.Warnln("Overriding parameters on resubmitted workflows may have unexpected results")
+		}
+		err := overrideParameters(newWF, parameters)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 
 	onExitNodeName := wf.ObjectMeta.Name + ".onExit"
 	// Get all children of nodes that match filter
 	nodeIDsToReset, err := getNodeIDsToReset(restartSuccessful, nodeFieldSelector, wf.Status.Nodes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Iterate the previous nodes. If it was successful Pod carry it forward
 	deletedNodes := make(map[string]bool)
+	deletedPods := make(map[string]bool)
+	var podsToDelete []string
 	for _, node := range wf.Status.Nodes {
 		doForceResetNode := false
 		if _, present := nodeIDsToReset[node.ID]; present {
@@ -780,17 +822,38 @@ func retryWorkflow(ctx context.Context, kubeClient kubernetes.Interface, hydrato
 		switch node.Phase {
 		case wfv1.NodeSucceeded, wfv1.NodeSkipped:
 			if !strings.HasPrefix(node.Name, onExitNodeName) && !doForceResetNode {
-				newWF.Status.Nodes[node.ID] = node
+				// Reset parent node if this node is a step/task group or DAG.
+				if (node.Type == wfv1.NodeTypeDAG || node.Type == wfv1.NodeTypeTaskGroup || node.Type == wfv1.NodeTypeStepGroup) && node.BoundaryID != "" {
+					parentNodeID := node.BoundaryID
+					if parentNodeID != wf.ObjectMeta.Name { // Skip root node
+						for _, tmplNode := range wf.Status.Nodes {
+							// Reset the parent node
+							if tmplNode.ID == parentNodeID {
+								log.Debugln(fmt.Sprintf("Resetting parent node %s", parentNodeID))
+								newParentNode := tmplNode.DeepCopy()
+								newWF.Status.Nodes[tmplNode.ID] = resetNode(*newParentNode)
+							}
+							// If the node belongs to a node group that needs to be retried, reset its status
+							if tmplNode.BoundaryID == parentNodeID {
+								log.Debugln(fmt.Sprintf("Resetting child node %s since its parent node %s is being retried", tmplNode.ID, parentNodeID))
+								newChildNode := tmplNode.DeepCopy()
+								newWF.Status.Nodes[tmplNode.ID] = resetNode(*newChildNode)
+							}
+						}
+					}
+				} else {
+					newWF.Status.Nodes[node.ID] = node
+				}
 				continue
 			}
-		case wfv1.NodeError, wfv1.NodeFailed, wfv1.NodeOmitted:
-			if !strings.HasPrefix(node.Name, onExitNodeName) && (node.Type == wfv1.NodeTypeDAG || node.Type == wfv1.NodeTypeStepGroup) {
+			if doForceResetNode {
 				newNode := node.DeepCopy()
-				newNode.Phase = wfv1.NodeRunning
-				newNode.Message = ""
-				newNode.StartedAt = metav1.Time{Time: time.Now().UTC()}
-				newNode.FinishedAt = metav1.Time{}
-				newWF.Status.Nodes[newNode.ID] = *newNode
+				newWF.Status.Nodes[newNode.ID] = resetNode(*newNode)
+			}
+		case wfv1.NodeError, wfv1.NodeFailed, wfv1.NodeOmitted:
+			if !strings.HasPrefix(node.Name, onExitNodeName) && (node.Type == wfv1.NodeTypeDAG || node.Type == wfv1.NodeTypeTaskGroup || node.Type == wfv1.NodeTypeStepGroup) {
+				newNode := node.DeepCopy()
+				newWF.Status.Nodes[newNode.ID] = resetNode(*newNode)
 				continue
 			} else {
 				deletedNodes[node.ID] = true
@@ -798,27 +861,35 @@ func retryWorkflow(ctx context.Context, kubeClient kubernetes.Interface, hydrato
 			// do not add this status to the node. pretend as if this node never existed.
 		default:
 			// Do not allow retry of workflows with pods in Running/Pending phase
-			return nil, errors.InternalErrorf("Workflow cannot be retried with node %s in %s phase", node.Name, node.Phase)
+			return nil, nil, errors.InternalErrorf("Workflow cannot be retried with node %s in %s phase", node.Name, node.Phase)
 		}
+
 		if node.Type == wfv1.NodeTypePod {
-			log.Infof("Deleting pod: %s", node.ID)
-			err := podIf.Delete(ctx, node.ID, metav1.DeleteOptions{})
-			if err != nil && !apierr.IsNotFound(err) {
-				return nil, errors.InternalWrapError(err)
+			deletedNodes[node.ID] = true
+			deletedPods, podsToDelete = deletePodNodeDuringRetryWorkflow(wf, node, deletedPods, podsToDelete)
+
+			descendantNodeIDs := getDescendantNodeIDs(wf, node)
+			for _, descendantNodeID := range descendantNodeIDs {
+				deletedNodes[descendantNodeID] = true
+				descendantNode := wf.Status.Nodes[descendantNodeID]
+				if descendantNode.Type == wfv1.NodeTypePod {
+					deletedPods, podsToDelete = deletePodNodeDuringRetryWorkflow(wf, descendantNode, deletedPods, podsToDelete)
+				}
 			}
 		} else if node.Name == wf.ObjectMeta.Name {
 			newNode := node.DeepCopy()
-			newNode.Phase = wfv1.NodeRunning
-			newNode.Message = ""
-			newNode.StartedAt = metav1.Time{Time: time.Now().UTC()}
-			newNode.FinishedAt = metav1.Time{}
-			newWF.Status.Nodes[newNode.ID] = *newNode
+			newWF.Status.Nodes[newNode.ID] = resetNode(*newNode)
 			continue
 		}
 	}
 
 	if len(deletedNodes) > 0 {
 		for _, node := range newWF.Status.Nodes {
+			if deletedNodes[node.ID] {
+				delete(newWF.Status.Nodes, node.ID)
+				continue
+			}
+
 			var newChildren []string
 			for _, child := range node.Children {
 				if !deletedNodes[child] {
@@ -839,17 +910,27 @@ func retryWorkflow(ctx context.Context, kubeClient kubernetes.Interface, hydrato
 		}
 	}
 
-	err = hydrator.Dehydrate(newWF)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compress or offload workflow nodes: %s", err)
-	}
-
 	newWF.Status.StoredTemplates = make(map[string]wfv1.Template)
 	for id, tmpl := range wf.Status.StoredTemplates {
 		newWF.Status.StoredTemplates[id] = tmpl
 	}
 
-	return wfClient.Update(ctx, newWF, metav1.UpdateOptions{})
+	return newWF, podsToDelete, nil
+}
+
+func resetNode(node wfv1.NodeStatus) wfv1.NodeStatus {
+	node.Phase = wfv1.NodeRunning
+	node.Message = ""
+	node.StartedAt = metav1.Time{Time: time.Now().UTC()}
+	node.FinishedAt = metav1.Time{}
+	return node
+}
+
+func getTemplateFromNode(node wfv1.NodeStatus) string {
+	if node.TemplateRef != nil {
+		return node.TemplateRef.Template
+	}
+	return node.TemplateName
 }
 
 func getNodeIDsToReset(restartSuccessful bool, nodeFieldSelector string, nodes wfv1.Nodes) (map[string]bool, error) {
@@ -953,7 +1034,7 @@ func ReadFromStdin() ([]byte, error) {
 
 // Reads the content of a url
 func ReadFromUrl(url string) ([]byte, error) {
-	response, err := http.Get(url)
+	response, err := http.Get(url) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -977,7 +1058,7 @@ func ReadFromFilePathsOrUrls(filePathsOrUrls ...string) ([][]byte, error) {
 				return [][]byte{}, err
 			}
 		} else {
-			body, err = ioutil.ReadFile(filePathOrUrl)
+			body, err = ioutil.ReadFile(filepath.Clean(filePathOrUrl))
 			if err != nil {
 				return [][]byte{}, err
 			}
@@ -1037,18 +1118,46 @@ func PodSpecPatchMerge(wf *wfv1.Workflow, tmpl *wfv1.Template) (string, error) {
 }
 
 func GetNodeType(tmpl *wfv1.Template) wfv1.NodeType {
-	if tmpl.RetryStrategy != nil {
-		return wfv1.NodeTypeRetry
+	return tmpl.GetNodeType()
+}
+
+// IsWindowsUNCPath checks if path is prefixed with \\
+// This can be used to skip any processing of paths
+// that point to SMB shares, local named pipes and local UNC path
+func IsWindowsUNCPath(path string, tmpl *wfv1.Template) bool {
+	if !HasWindowsOSNodeSelector(tmpl.NodeSelector) && nruntime.GOOS != "windows" {
+		return false
 	}
-	switch tmpl.GetType() {
-	case wfv1.TemplateTypeContainer, wfv1.TemplateTypeContainerSet, wfv1.TemplateTypeScript, wfv1.TemplateTypeResource, wfv1.TemplateTypeData:
-		return wfv1.NodeTypePod
-	case wfv1.TemplateTypeDAG:
-		return wfv1.NodeTypeDAG
-	case wfv1.TemplateTypeSteps:
-		return wfv1.NodeTypeSteps
-	case wfv1.TemplateTypeSuspend:
-		return wfv1.NodeTypeSuspend
+	// Check for UNC prefix \\
+	if strings.HasPrefix(path, `\\`) {
+		return true
 	}
-	return ""
+	return false
+}
+
+func HasWindowsOSNodeSelector(nodeSelector map[string]string) bool {
+	if nodeSelector == nil {
+		return false
+	}
+
+	if platform, keyExists := nodeSelector["kubernetes.io/os"]; keyExists && platform == "windows" {
+		return true
+	}
+
+	return false
+}
+
+func FindWaitCtrIndex(pod *apiv1.Pod) (int, error) {
+	waitCtrIndex := -1
+	for i, ctr := range pod.Spec.Containers {
+		switch ctr.Name {
+		case common.WaitContainerName:
+			waitCtrIndex = i
+		}
+	}
+	if waitCtrIndex == -1 {
+		err := errors.Errorf("-1", "Could not find wait container in pod spec")
+		return -1, err
+	}
+	return waitCtrIndex, nil
 }

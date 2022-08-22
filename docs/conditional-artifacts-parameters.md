@@ -28,12 +28,12 @@ under step/DAG level output parameter. Both use the
 
 ```
 
-* [Steps artifacts example](examples/conditional-artifacts.yaml)
-* [DAG artifacts example](examples/dag-conditional-artifacts.yaml)
+* [Steps artifacts example](https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/conditional-artifacts.yaml)
+* [DAG artifacts example](https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/dag-conditional-artifacts.yaml)
 
 ## Conditional Parameters
 
-```yaml   
+```yaml
     - name: coinflip
       steps:
         - - name: flip-coin
@@ -51,22 +51,22 @@ under step/DAG level output parameter. Both use the
               expression: "steps.flipcoin.outputs.result == 'heads' ? steps.heads.outputs.result : steps.tails.outputs.result"
 ```
 
-* [Steps parameter example](examples/conditional-parameters.yaml)
-* [DAG parameter example](examples/dag-conditional-parameters.yaml)
+* [Steps parameter example](https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/conditional-parameters.yaml)
+* [DAG parameter example](https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/dag-conditional-parameters.yaml)
 
-## Build-In Functions
+## Built-In Functions
 
 Convenient functions added to support more use cases:
 
 1. `asInt`    - convert the string to integer (e.g: `asInt('1')`)
 2. `asFloat`  - convert the string to Float (e.g: `asFloat('1.23')`)
 3. `string`   - convert the int/float to string (e.g: `string(1)`)
-4. `jsonpath` - Extract the element from Json using jsonpath (
+4. `jsonpath` - Extract the element from JSON using JSON Path (
    e.g: `jsonpath('{"employee":{"name":"sonoo","salary":56000,"married":true}}", "$.employee.name" )` )
 5. [Sprig](http://masterminds.github.io/sprig/) - Support all `sprig` functions
 
-* [Advanced example: fibonacci Sequence](examples/fibonacci-seq-conditional-param.yaml)
+* [Advanced example: fibonacci Sequence](https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/fibonacci-seq-conditional-param.yaml)
 
-!!! NOTE 
+!!! NOTE
     Expressions will decode the `-` as operator if template name has `-`, it will fail the expression. So here solution
     for template name which has `-` in its name. `step['one-two-three'].outputs.artifacts`

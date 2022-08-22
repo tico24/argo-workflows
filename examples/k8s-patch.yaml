@@ -6,9 +6,7 @@ metadata:
     workflows.argoproj.io/test: "true"
   annotations:
     workflows.argoproj.io/description: |
-      This example patches
-    workflows.argoproj.io/verify.py: |
-      assert status["phase"] == "Succeeded"
+      This example shows a more advanced patch with json mergeStrategy
 spec:
   entrypoint: main
   templates:

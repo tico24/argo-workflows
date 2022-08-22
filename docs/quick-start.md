@@ -1,42 +1,63 @@
 # Quick Start
 
-To see how Argo works, you can install it and run examples of simple workflows and workflows that use artifacts.
+To see how Argo Workflows work, you can install it and run examples of simple workflows and workflows that use artifacts.
 
-Firstly, you'll need a Kubernetes cluster and `kubectl` set-up
+Before you start you need a Kubernetes cluster and `kubectl` set-up
 
 ## Install Argo Workflows
 
-To get started quickly, you can use the quick start manifest which will install Argo Workflow as well as some commonly used components:
+To get started quickly, you can use the quick start manifest which will install Argo Workflows as well as some commonly used components:
 
-```sh
+⚠️ These manifests are intended to help you get started quickly. They are not suitable in production. They contain hard-coded passwords that are publicly available.
+
+```bash
 kubectl create ns argo
-kubectl apply -n argo -f https://raw.githubusercontent.com/argoproj/argo-workflows/stable/manifests/quick-start-postgres.yaml
+kubectl apply -n argo -f https://raw.githubusercontent.com/argoproj/argo-workflows/master/manifests/quick-start-postgres.yaml
 ```
 
-!!! note
-    On GKE, you may need to grant your account the ability to create new `clusterrole`s
+Open a port-forward so you can access the UI:
 
-```sh
-kubectl create clusterrolebinding YOURNAME-cluster-admin-binding --clusterrole=cluster-admin --user=YOUREMAIL@gmail.com
-```
-
-If you are running Argo Workflows locally (e.g. using Minikube or Docker for Desktop), open a port-forward so you can access the namespace:
-
-```sh
+```bash
 kubectl -n argo port-forward deployment/argo-server 2746:2746
 ```
 
-This will serve the user interface on https://localhost:2746
+This will serve the UI on <https://localhost:2746>
 
-If you're using running Argo Workflows on a remote cluster (e.g. on EKS or GKE) then [follow these instructions](argo-server.md#access-the-argo-workflows-ui). 
-
-Next, Download the latest Argo CLI from our [releases page](https://github.com/argoproj/argo-workflows/releases).
+Next, Download the latest Argo CLI from our [releases page](https://github.com/argoproj/argo-workflows/releases/latest).
 
 Finally, submit an example workflow:  
 
-```sh
+```bash
 argo submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
+```
+
+The `--watch` flag used above will allow you to observe the workflow as it runs and the status of whether it succeeds.
+When the workflow completes, the watch on the workflow will stop.
+
+You can list all the Workflows you have submitted by running the command below:
+
+```bash
 argo list -n argo
+```
+
+You will notice the Workflow name has a `hello-world-` prefix followed by random characters. These characters are used
+to give Workflows unique names to help identify specific runs of a Workflow. If you submitted this Workflow again,
+the next Workflow run would have a different name.
+
+Using the `argo get` command, you can always review details of a Workflow run. The output for the command below will
+be the same as the information shown as when you submitted the Workflow:
+
+```bash
 argo get -n argo @latest
+```
+
+The `@latest` argument to the CLI is a short cut to view the latest Workflow run that was executed.
+
+You can also observe the logs of the Workflow run by running the following:
+
+```bash
 argo logs -n argo @latest
 ```
+
+💡 If you want to try out Argo Workflows and don't want to set up a Kubernetes cluster, the community is working on a replacement for the old Katacoda course since
+Katacoda was shut down. Please give a thumbs up or comment on [this issue](https://github.com/argoproj/argo-workflows/issues/8899) with your support and feedback.

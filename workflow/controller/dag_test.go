@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-
 	"github.com/argoproj/argo-workflows/v3/workflow/common"
 )
 
@@ -156,6 +155,16 @@ spec:
           artifacts:
           - name: message
             from: "{{tasks.generate-artifact.outputs.artifacts.hello-art}}"
+      - name: sequence-param
+        template: print-message
+        dependencies: [generate-artifact]
+        when: "false"
+        arguments:
+          artifacts:
+          - name: message
+            from: "{{tasks.generate-artifact.outputs.artifacts.hello-art}}"
+        withSequence:
+          count: "5"
 
   - name: whalesay
     container:
@@ -448,6 +457,42 @@ func TestEvaluateDependsLogicWhenDaemonFailed(t *testing.T) {
 
 	// Task B should proceed and execute
 	execute, proceed, err = d.evaluateDependsLogic("B")
+	assert.NoError(t, err)
+	assert.True(t, proceed)
+	assert.True(t, execute)
+}
+
+func TestEvaluateDependsLogicWhenTaskOmitted(t *testing.T) {
+	testTasks := []wfv1.DAGTask{
+		{
+			Name: "A",
+		},
+		{
+			Name:    "B",
+			Depends: "A.Omitted",
+		},
+	}
+
+	d := &dagContext{
+		boundaryName: "test",
+		tasks:        testTasks,
+		wf:           &wfv1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-wf"}},
+		dependencies: make(map[string][]string),
+		dependsLogic: make(map[string]string),
+	}
+
+	// Task A is running
+	d.wf = &wfv1.Workflow{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-wf"},
+		Status: wfv1.WorkflowStatus{
+			Nodes: map[string]wfv1.NodeStatus{
+				d.taskNodeID("A"): {Phase: wfv1.NodeOmitted},
+			},
+		},
+	}
+
+	// Task B should proceed and execute
+	execute, proceed, err := d.evaluateDependsLogic("B")
 	assert.NoError(t, err)
 	assert.True(t, proceed)
 	assert.True(t, execute)
@@ -3149,4 +3194,446 @@ func TestLeafContinueOn(t *testing.T) {
 	ctx := context.Background()
 	woc.operate(ctx)
 	assert.Equal(t, wfv1.WorkflowSucceeded, woc.wf.Status.Phase)
+}
+
+var dagOutputsReferTaskAggregatedOuputs = `
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: parameter-aggregation-dag-h8b82
+spec:
+
+  entrypoint: parameter-aggregation
+  templates:
+  -
+    dag:
+      tasks:
+      - arguments:
+          parameters:
+          - name: num
+            value: '{{item}}'
+        name: odd-or-even
+        template: odd-or-even
+        withItems:
+        - 1
+        - 2
+    inputs: {}
+    metadata: {}
+    name: parameter-aggregation
+    outputs:
+      parameters:
+      - name: dag-nums
+        valueFrom:
+          parameter: '{{tasks.odd-or-even.outputs.parameters.num}}'
+      - name: dag-evenness
+        valueFrom:
+          parameter: '{{tasks.odd-or-even.outputs.parameters.evenness}}'
+  -
+    container:
+      args:
+      - |
+        sleep 1 &&
+        echo {{inputs.parameters.num}} > /tmp/num &&
+        if [ $(({{inputs.parameters.num}}%2)) -eq 0 ]; then
+          echo "even" > /tmp/even;
+        else
+          echo "odd" > /tmp/even;
+        fi
+      command:
+      - sh
+      - -c
+      image: alpine:latest
+      name: ""
+      resources: {}
+    inputs:
+      parameters:
+      - name: num
+    metadata: {}
+    name: odd-or-even
+    outputs:
+      parameters:
+      - name: num
+        valueFrom:
+          path: /tmp/num
+      - name: evenness
+        valueFrom:
+          path: /tmp/even
+status:
+  nodes:
+    parameter-aggregation-dag-h8b82:
+      children:
+      - parameter-aggregation-dag-h8b82-3379492521
+      displayName: parameter-aggregation-dag-h8b82
+      finishedAt: "2020-12-09T15:37:07Z"
+      id: parameter-aggregation-dag-h8b82
+      name: parameter-aggregation-dag-h8b82
+      outboundNodes:
+      - parameter-aggregation-dag-h8b82-3175470584
+      - parameter-aggregation-dag-h8b82-2243926302
+      phase: Running
+      startedAt: "2020-12-09T15:36:46Z"
+      templateName: parameter-aggregation
+      templateScope: local/parameter-aggregation-dag-h8b82
+      type: DAG
+    parameter-aggregation-dag-h8b82-1440345089:
+      boundaryID: parameter-aggregation-dag-h8b82
+      displayName: odd-or-even(1:2)
+      finishedAt: "2020-12-09T15:36:54Z"
+      hostNodeName: minikube
+      id: parameter-aggregation-dag-h8b82-1440345089
+      inputs:
+        parameters:
+        - name: num
+          value: "2"
+      name: parameter-aggregation-dag-h8b82.odd-or-even(1:2)
+      outputs:
+        exitCode: "0"
+        parameters:
+        - name: num
+          value: "2"
+          valueFrom:
+            path: /tmp/num
+        - name: evenness
+          value: even
+          valueFrom:
+            path: /tmp/even
+      phase: Succeeded
+      startedAt: "2020-12-09T15:36:46Z"
+      templateName: odd-or-even
+      templateScope: local/parameter-aggregation-dag-h8b82
+      type: Pod
+    parameter-aggregation-dag-h8b82-3379492521:
+      boundaryID: parameter-aggregation-dag-h8b82
+      children:
+      - parameter-aggregation-dag-h8b82-3572919299
+      - parameter-aggregation-dag-h8b82-1440345089
+      displayName: odd-or-even
+      finishedAt: "2020-12-09T15:36:55Z"
+      id: parameter-aggregation-dag-h8b82-3379492521
+      name: parameter-aggregation-dag-h8b82.odd-or-even
+      phase: Succeeded
+      startedAt: "2020-12-09T15:36:46Z"
+      templateName: odd-or-even
+      templateScope: local/parameter-aggregation-dag-h8b82
+      type: TaskGroup
+    parameter-aggregation-dag-h8b82-3572919299:
+      boundaryID: parameter-aggregation-dag-h8b82
+      displayName: odd-or-even(0:1)
+      finishedAt: "2020-12-09T15:36:53Z"
+      hostNodeName: minikube
+      id: parameter-aggregation-dag-h8b82-3572919299
+      inputs:
+        parameters:
+        - name: num
+          value: "1"
+      name: parameter-aggregation-dag-h8b82.odd-or-even(0:1)
+      outputs:
+        exitCode: "0"
+        parameters:
+        - name: num
+          value: "1"
+          valueFrom:
+            path: /tmp/num
+        - name: evenness
+          value: odd
+          valueFrom:
+            path: /tmp/even
+      phase: Succeeded
+      startedAt: "2020-12-09T15:36:46Z"
+      templateName: odd-or-even
+      templateScope: local/parameter-aggregation-dag-h8b82
+      type: Pod
+  phase: Succeeded
+  startedAt: "2020-12-09T15:36:46Z"
+`
+
+func TestDAGReferTaskAggregatedOutputs(t *testing.T) {
+	wf := wfv1.MustUnmarshalWorkflow(dagOutputsReferTaskAggregatedOuputs)
+	cancel, controller := newController(wf)
+	defer cancel()
+
+	ctx := context.Background()
+	woc := newWorkflowOperationCtx(wf, controller)
+	woc.operate(ctx)
+
+	dagNode := woc.wf.Status.Nodes.FindByDisplayName("parameter-aggregation-dag-h8b82")
+	if assert.NotNil(t, dagNode) {
+		if assert.NotNil(t, dagNode.Outputs) {
+			if assert.Len(t, dagNode.Outputs.Parameters, 2) {
+				assert.Equal(t, `["1","2"]`, dagNode.Outputs.Parameters[0].Value.String())
+				assert.Equal(t, `["odd","even"]`, dagNode.Outputs.Parameters[1].Value.String())
+			}
+		}
+	}
+}
+
+var dagHttpChildrenAssigned = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: http-template-nv52d
+spec:
+  entrypoint: main
+  templates:
+  - dag:
+      tasks:
+      - arguments:
+          parameters:
+          - name: url
+            value: https://raw.githubusercontent.com/argoproj/argo-workflows/4e450e250168e6b4d51a126b784e90b11a0162bc/pkg/apis/workflow/v1alpha1/generated.swagger.json
+        name: good1
+        template: http
+      - arguments:
+          parameters:
+          - name: url
+            value: https://raw.githubusercontent.com/argoproj/argo-workflows/4e450e250168e6b4d51a126b784e90b11a0162bc/pkg/apis/workflow/v1alpha1/generated.swagger.json
+        dependencies:
+        - good1
+        name: good2
+        template: http
+    name: main
+  - http:
+      url: '{{inputs.parameters.url}}'
+    inputs:
+      parameters:
+      - name: url
+    name: http
+status:
+  nodes:
+    http-template-nv52d:
+      children:
+      - http-template-nv52d-444770636
+      displayName: http-template-nv52d
+      id: http-template-nv52d
+      name: http-template-nv52d
+      outboundNodes:
+      - http-template-nv52d-478325874
+      phase: Running
+      startedAt: "2021-10-27T13:46:08Z"
+      templateName: main
+      templateScope: local/http-template-nv52d
+      type: DAG
+    http-template-nv52d-444770636:
+      boundaryID: http-template-nv52d
+      children:
+      - http-template-nv52d-495103493
+      displayName: good1
+      finishedAt: null
+      id: http-template-nv52d-444770636
+      name: http-template-nv52d.good1
+      phase: Succeeded
+      startedAt: "2021-10-27T13:46:08Z"
+      templateName: http
+      templateScope: local/http-template-nv52d
+      type: HTTP
+  phase: Running
+  startedAt: "2021-10-27T13:46:08Z"
+`
+
+func TestDagHttpChildrenAssigned(t *testing.T) {
+	wf := wfv1.MustUnmarshalWorkflow(dagHttpChildrenAssigned)
+	cancel, controller := newController(wf)
+	defer cancel()
+
+	ctx := context.Background()
+	woc := newWorkflowOperationCtx(wf, controller)
+	woc.operate(ctx)
+
+	dagNode := woc.wf.Status.Nodes.FindByDisplayName("good2")
+	assert.NotNil(t, dagNode)
+
+	dagNode = woc.wf.Status.Nodes.FindByDisplayName("good1")
+	if assert.NotNil(t, dagNode) {
+		if assert.Len(t, dagNode.Children, 1) {
+			assert.Equal(t, "http-template-nv52d-495103493", dagNode.Children[0])
+		}
+	}
+}
+
+var retryTypeDagTaskRunExitNodeAfterCompleted = `
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  labels:
+    workflows.argoproj.io/phase: Running
+  name: test-workflow-with-hang-cztfs
+  namespace: argo-system
+spec:
+  entrypoint: dag
+  templates:
+  - name: linuxExitHandler
+    steps:
+    - - name: printExit
+        template: printExit
+  - container:
+      args:
+      - echo
+      - exit
+      command:
+      - /argosay
+      image: argoproj/argosay:v2
+      name: ""
+    name: printExit
+  - container:
+      args:
+      - echo
+      - a
+      command:
+      - /argosay
+      image: argoproj/argosay:v2
+      name: ""
+    name: printA
+    retryStrategy:
+      limit: "3"
+      retryPolicy: OnError
+  - dag:
+      tasks:
+      - hooks:
+          exit:
+            template: linuxExitHandler
+        name: printA
+        template: printA
+      - depends: printA.Succeeded
+        hooks:
+          exit:
+            template: linuxExitHandler
+        name: dependencyTesting
+        template: printA
+    name: dag
+status:
+  nodes:
+    test-workflow-with-hang-cztfs:
+      children:
+      - test-workflow-with-hang-cztfs-1556528266
+      displayName: test-workflow-with-hang-cztfs
+      finishedAt: null
+      id: test-workflow-with-hang-cztfs
+      name: test-workflow-with-hang-cztfs
+      phase: Running
+      progress: 4/4
+      startedAt: "2022-08-04T02:28:38Z"
+      templateName: dag
+      templateScope: local/test-workflow-with-hang-cztfs
+      type: DAG
+    test-workflow-with-hang-cztfs-589413809:
+      boundaryID: test-workflow-with-hang-cztfs
+      children:
+      - test-workflow-with-hang-cztfs-527957059
+      displayName: printA(0)
+      finishedAt: "2022-08-04T02:28:43Z"
+      hostNodeName: node2
+      id: test-workflow-with-hang-cztfs-589413809
+      name: test-workflow-with-hang-cztfs.printA(0)
+      outputs:
+        exitCode: "0"
+      phase: Succeeded
+      progress: 1/1
+      resourcesDuration:
+        cpu: 2
+        memory: 2
+      startedAt: "2022-08-04T02:28:38Z"
+      templateName: printA
+      templateScope: local/test-workflow-with-hang-cztfs
+      type: Pod
+    test-workflow-with-hang-cztfs-1556528266:
+      boundaryID: test-workflow-with-hang-cztfs
+      children:
+      - test-workflow-with-hang-cztfs-589413809
+      displayName: printA
+      finishedAt: "2022-08-04T02:28:48Z"
+      id: test-workflow-with-hang-cztfs-1556528266
+      name: test-workflow-with-hang-cztfs.printA
+      outputs:
+        exitCode: "0"
+      phase: Succeeded
+      progress: 4/4
+      resourcesDuration:
+        cpu: 5
+        memory: 5
+      startedAt: "2022-08-04T02:28:38Z"
+      templateName: printA
+      templateScope: local/test-workflow-with-hang-cztfs
+      type: Retry
+  phase: Running
+  progress: 4/4
+  resourcesDuration:
+    cpu: 5
+    memory: 5
+  startedAt: "2022-08-04T02:28:38Z"
+`
+
+func TestRetryTypeDagTaskRunExitNodeAfterCompleted(t *testing.T) {
+	wf := wfv1.MustUnmarshalWorkflow(retryTypeDagTaskRunExitNodeAfterCompleted)
+	cancel, controller := newController(wf)
+	defer cancel()
+
+	ctx := context.Background()
+	woc := newWorkflowOperationCtx(wf, controller)
+	// retryTypeDAGTask completed
+	printAChild := woc.wf.Status.Nodes.FindByDisplayName("printA(0)")
+	assert.Equal(t, wfv1.NodeSucceeded, printAChild.Phase)
+
+	// run ExitNode
+	woc.operate(ctx)
+	onExitNode := woc.wf.Status.Nodes.FindByDisplayName("printA.onExit")
+	assert.NotNil(t, onExitNode)
+	assert.Equal(t, wfv1.NodeRunning, onExitNode.Phase)
+
+	// exitNode succeeded
+	makePodsPhase(ctx, woc, v1.PodSucceeded)
+	woc.operate(ctx)
+	onExitNode = woc.wf.Status.Nodes.FindByDisplayName("printA.onExit")
+	assert.Equal(t, wfv1.NodeSucceeded, onExitNode.Phase)
+
+	// run next DAGTask
+	woc.operate(ctx)
+	nextDAGTaskNode := woc.wf.Status.Nodes.FindByDisplayName("dependencyTesting")
+	assert.NotNil(t, nextDAGTaskNode)
+	assert.Equal(t, wfv1.NodeRunning, nextDAGTaskNode.Phase)
+}
+
+func TestDagParallelism(t *testing.T) {
+	wf := wfv1.MustUnmarshalWorkflow(`apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: test-parallelism
+  namespace: argo
+spec:
+  entrypoint: main
+  parallelism: 1
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: do-it-once
+            template: do-it
+            arguments:
+              parameters:
+                - name: thing
+                  value: 1
+          - name: do-it-twice
+            template: do-it
+            arguments:
+              parameters:
+                - name: thing
+                  value: 2
+          - name: do-it-thrice
+            template: do-it
+            arguments:
+              parameters:
+                - name: thing
+                  value: 3
+    - name: do-it
+      inputs:
+        parameters:
+          - name: thing
+      container:
+        image: docker/whalesay:latest
+        command: [cowsay]
+        args: ["I have a {{inputs.parameters.thing}}"]`)
+	woc := newWoc(*wf)
+	ctx := context.Background()
+	woc.operate(ctx)
+	woc1 := newWoc(*woc.wf)
+	woc1.operate(ctx)
+	assert.Equal(t, wfv1.WorkflowRunning, woc.wf.Status.Phase)
 }

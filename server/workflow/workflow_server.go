@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/argoproj/argo-workflows/v3/errors"
 	"github.com/argoproj/argo-workflows/v3/persist/sqldb"
@@ -62,7 +63,7 @@ func (s *workflowServer) CreateWorkflow(ctx context.Context, req *workflowpkg.Wo
 	wftmplGetter := templateresolution.WrapWorkflowTemplateInterface(wfClient.ArgoprojV1alpha1().WorkflowTemplates(req.Namespace))
 	cwftmplGetter := templateresolution.WrapClusterWorkflowTemplateInterface(wfClient.ArgoprojV1alpha1().ClusterWorkflowTemplates())
 
-	_, err := validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, req.Workflow, validate.ValidateOpts{})
+	err := validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, req.Workflow, validate.ValidateOpts{})
 	if err != nil {
 		return nil, err
 	}
@@ -103,25 +104,17 @@ func (s *workflowServer) GetWorkflow(ctx context.Context, req *workflowpkg.Workf
 	if err != nil {
 		return nil, err
 	}
-	err = s.hydrator.Hydrate(wf)
-	if err != nil {
-		return nil, err
+	cleaner := fields.NewCleaner(req.Fields)
+	if !cleaner.WillExclude("status.nodes") {
+		if err := s.hydrator.Hydrate(wf); err != nil {
+			return nil, err
+		}
 	}
-	if req.Fields != "" {
-		wfBytes, err := json.Marshal(wf)
-		if err != nil {
-			return nil, err
-		}
-		resClean, err := fields.CleanFields(req.Fields, wfBytes)
-		if err != nil {
-			return nil, fmt.Errorf("unable to CleanFields in request: %w", err)
-		}
-		var newWf wfv1.Workflow
-		err = json.Unmarshal(resClean, &newWf)
-		if err != nil {
-			return nil, err
-		}
-		return &newWf, nil
+	newWf := &wfv1.Workflow{}
+	if ok, err := cleaner.Clean(wf, &newWf); err != nil {
+		return nil, fmt.Errorf("unable to CleanFields in request: %w", err)
+	} else if ok {
+		return newWf, nil
 	}
 	return wf, nil
 }
@@ -138,7 +131,8 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	if err != nil {
 		return nil, err
 	}
-	if s.offloadNodeStatusRepo.IsEnabled() {
+	cleaner := fields.NewCleaner(req.Fields)
+	if s.offloadNodeStatusRepo.IsEnabled() && !cleaner.WillExclude("items.status.nodes") {
 		offloadedNodes, err := s.offloadNodeStatusRepo.List(req.Namespace)
 		if err != nil {
 			return nil, err
@@ -158,21 +152,11 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	sort.Sort(wfList.Items)
 
 	res := &wfv1.WorkflowList{ListMeta: metav1.ListMeta{Continue: wfList.Continue, ResourceVersion: wfList.ResourceVersion}, Items: wfList.Items}
-	if req.Fields != "" {
-		resBytes, err := json.Marshal(res)
-		if err != nil {
-			return nil, err
-		}
-		resClean, err := fields.CleanFields(req.Fields, resBytes)
-		if err != nil {
-			return nil, fmt.Errorf("unable to CleanFields in request: %w", err)
-		}
-		var newRes wfv1.WorkflowList
-		err = json.Unmarshal(resClean, &newRes)
-		if err != nil {
-			return nil, err
-		}
-		return &newRes, nil
+	newRes := &wfv1.WorkflowList{}
+	if ok, err := cleaner.Clean(res, &newRes); err != nil {
+		return nil, fmt.Errorf("unable to CleanFields in request: %w", err)
+	} else if ok {
+		return newRes, nil
 	}
 	return res, nil
 }
@@ -201,7 +185,18 @@ func (s *workflowServer) WatchWorkflows(req *workflowpkg.WatchWorkflowsRequest, 
 		return err
 	}
 	defer watch.Stop()
+	cleaner := fields.NewCleaner(req.Fields).WithoutPrefix("result.object.")
 
+	clean := func(x *wfv1.Workflow) (*wfv1.Workflow, error) {
+		y := &wfv1.Workflow{}
+		if clean, err := cleaner.Clean(x, y); err != nil {
+			return nil, err
+		} else if clean {
+			return y, nil
+		} else {
+			return x, nil
+		}
+	}
 	log.Debug("Piping events to channel")
 	defer log.Debug("Result channel done")
 
@@ -229,12 +224,17 @@ func (s *workflowServer) WatchWorkflows(req *workflowpkg.WatchWorkflowsRequest, 
 				return apierr.FromObject(event.Object)
 			}
 			logCtx := log.WithFields(log.Fields{"workflow": wf.Name, "type": event.Type, "phase": wf.Status.Phase})
-			err := s.hydrator.Hydrate(wf)
+			if !cleaner.WillExclude("status.nodes") {
+				if err := s.hydrator.Hydrate(wf); err != nil {
+					return err
+				}
+			}
+			newWf, err := clean(wf)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to CleanFields in request: %w", err)
 			}
 			logCtx.Debug("Sending workflow event")
-			err = ws.Send(&workflowpkg.WorkflowWatchEvent{Type: string(event.Type), Object: wf})
+			err = ws.Send(&workflowpkg.WorkflowWatchEvent{Type: string(event.Type), Object: newWf})
 			if err != nil {
 				return err
 			}
@@ -299,6 +299,12 @@ func (s *workflowServer) DeleteWorkflow(ctx context.Context, req *workflowpkg.Wo
 	if err != nil {
 		return nil, err
 	}
+	if req.Force {
+		_, err := auth.GetWfClient(ctx).ArgoprojV1alpha1().Workflows(wf.Namespace).Patch(ctx, wf.Name, types.MergePatchType, []byte("{\"metadata\":{\"finalizers\":null}}"), metav1.PatchOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
 	err = auth.GetWfClient(ctx).ArgoprojV1alpha1().Workflows(wf.Namespace).Delete(ctx, wf.Name, metav1.DeleteOptions{PropagationPolicy: argoutil.GetDeletePropagation()})
 	if err != nil {
 		return nil, err
@@ -320,10 +326,34 @@ func (s *workflowServer) RetryWorkflow(ctx context.Context, req *workflowpkg.Wor
 		return nil, err
 	}
 
-	wf, err = util.RetryWorkflow(ctx, kubeClient, s.hydrator, wfClient.ArgoprojV1alpha1().Workflows(req.Namespace), wf.Name, req.RestartSuccessful, req.NodeFieldSelector)
+	err = s.hydrator.Hydrate(wf)
 	if err != nil {
 		return nil, err
 	}
+
+	wf, podsToDelete, err := util.FormulateRetryWorkflow(ctx, wf, req.RestartSuccessful, req.NodeFieldSelector, req.Parameters)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, podName := range podsToDelete {
+		log.WithFields(log.Fields{"podDeleted": podName}).Info("Deleting pod")
+		err := kubeClient.CoreV1().Pods(wf.Namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+		if err != nil && !apierr.IsNotFound(err) {
+			return nil, err
+		}
+	}
+
+	err = s.hydrator.Dehydrate(wf)
+	if err != nil {
+		return nil, err
+	}
+
+	wf, err = wfClient.ArgoprojV1alpha1().Workflows(req.Namespace).Update(ctx, wf, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, err
+	}
+
 	return wf, nil
 }
 
@@ -339,7 +369,7 @@ func (s *workflowServer) ResubmitWorkflow(ctx context.Context, req *workflowpkg.
 		return nil, err
 	}
 
-	newWF, err := util.FormulateResubmitWorkflow(wf, req.Memoized)
+	newWF, err := util.FormulateResubmitWorkflow(wf, req.Memoized, req.Parameters)
 	if err != nil {
 		return nil, err
 	}
@@ -496,13 +526,16 @@ func (s *workflowServer) SetWorkflow(ctx context.Context, req *workflowpkg.Workf
 }
 
 func (s *workflowServer) LintWorkflow(ctx context.Context, req *workflowpkg.WorkflowLintRequest) (*wfv1.Workflow, error) {
+	if req.Workflow == nil {
+		return nil, fmt.Errorf("unable to get a workflow")
+	}
 	wfClient := auth.GetWfClient(ctx)
 	wftmplGetter := templateresolution.WrapWorkflowTemplateInterface(wfClient.ArgoprojV1alpha1().WorkflowTemplates(req.Namespace))
 	cwftmplGetter := templateresolution.WrapClusterWorkflowTemplateInterface(wfClient.ArgoprojV1alpha1().ClusterWorkflowTemplates())
 	s.instanceIDService.Label(req.Workflow)
 	creator.Label(ctx, req.Workflow)
 
-	_, err := validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, req.Workflow, validate.ValidateOpts{Lint: true})
+	err := validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, req.Workflow, validate.ValidateOpts{Lint: true})
 	if err != nil {
 		return nil, err
 	}
@@ -585,17 +618,9 @@ func (s *workflowServer) SubmitWorkflow(ctx context.Context, req *workflowpkg.Wo
 		}
 		wf = common.ConvertCronWorkflowToWorkflow(cronWf)
 	case workflow.WorkflowTemplateKind, workflow.WorkflowTemplateSingular, workflow.WorkflowTemplatePlural, workflow.WorkflowTemplateShortName:
-		wfTmpl, err := wfClient.ArgoprojV1alpha1().WorkflowTemplates(req.Namespace).Get(ctx, req.ResourceName, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
-		wf = common.NewWorkflowFromWorkflowTemplate(req.ResourceName, wfTmpl.Spec.WorkflowMetadata, false)
+		wf = common.NewWorkflowFromWorkflowTemplate(req.ResourceName, false)
 	case workflow.ClusterWorkflowTemplateKind, workflow.ClusterWorkflowTemplateSingular, workflow.ClusterWorkflowTemplatePlural, workflow.ClusterWorkflowTemplateShortName:
-		cwfTmpl, err := wfClient.ArgoprojV1alpha1().ClusterWorkflowTemplates().Get(ctx, req.ResourceName, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
-		wf = common.NewWorkflowFromWorkflowTemplate(req.ResourceName, cwfTmpl.Spec.WorkflowMetadata, true)
+		wf = common.NewWorkflowFromWorkflowTemplate(req.ResourceName, true)
 	default:
 		return nil, errors.Errorf(errors.CodeBadRequest, "Resource kind '%s' is not supported for submitting", req.ResourceKind)
 	}
@@ -610,7 +635,7 @@ func (s *workflowServer) SubmitWorkflow(ctx context.Context, req *workflowpkg.Wo
 	wftmplGetter := templateresolution.WrapWorkflowTemplateInterface(wfClient.ArgoprojV1alpha1().WorkflowTemplates(req.Namespace))
 	cwftmplGetter := templateresolution.WrapClusterWorkflowTemplateInterface(wfClient.ArgoprojV1alpha1().ClusterWorkflowTemplates())
 
-	_, err = validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, wf, validate.ValidateOpts{})
+	err = validate.ValidateWorkflow(wftmplGetter, cwftmplGetter, wf, validate.ValidateOpts{Submit: true})
 	if err != nil {
 		return nil, err
 	}

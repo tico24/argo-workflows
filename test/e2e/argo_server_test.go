@@ -1,3 +1,4 @@
+//go:build api
 // +build api
 
 package e2e
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +35,7 @@ const baseUrl = "http://localhost:2746"
 // testing behaviour really is a non-goal
 type ArgoServerSuite struct {
 	fixtures.E2ESuite
+	username    string
 	bearerToken string
 }
 
@@ -49,12 +52,14 @@ func (s *ArgoServerSuite) e() *httpexpect.Expect {
 			BaseURL:  baseUrl,
 			Reporter: httpexpect.NewRequireReporter(s.T()),
 			Printers: []httpexpect.Printer{
-				httpexpect.NewDebugPrinter(&httpLogger{}, true),
+				httpexpect.NewDebugPrinter(s.T(), true),
 			},
 			Client: httpClient,
 		}).
 		Builder(func(req *httpexpect.Request) {
-			if s.bearerToken != "" {
+			if s.username != "" {
+				req.WithBasicAuth(s.username, "garbage")
+			} else if s.bearerToken != "" {
 				req.WithHeader("Authorization", "Bearer "+s.bearerToken)
 			}
 		})
@@ -77,7 +82,7 @@ func (s *ArgoServerSuite) TestInfo() {
 			Equal("workflow")
 		json.
 			Path("$.links[0].url").
-			Equal("http://logging-facility?namespace=${metadata.namespace}&workflowName=${metadata.name}&startedAt=${status.startedAt}&finishedAt=${status.finishedAt}")
+			Equal("http://logging-facility?namespace=${metadata.namespace}&amp;workflowName=${metadata.name}&amp;startedAt=${status.startedAt}&amp;finishedAt=${status.finishedAt}")
 	})
 }
 
@@ -92,22 +97,35 @@ func (s *ArgoServerSuite) TestVersion() {
 	})
 }
 
-func (s *ArgoServerSuite) TestMetrics() {
-	s.Need(fixtures.CI)
-	s.e().GET("/metrics").
+func (s *ArgoServerSuite) TestMetricsForbidden() {
+	s.bearerToken = ""
+	s.e().
+		GET("/metrics").
+		Expect().
+		Status(403)
+}
+
+func (s *ArgoServerSuite) TestMetricsOK() {
+	body := s.e().
+		GET("/metrics").
 		Expect().
 		Status(200).
-		Body().
+		Body()
+	body.
 		// https://blog.netsil.com/the-4-golden-signals-of-api-health-and-performance-in-cloud-native-applications-a6e87526e74
 		// Latency: The time it takes to service a request, with a focus on distinguishing between the latency of successful requests and the latency of failed requests
 		Contains(`grpc_server_handling_seconds_bucket`).
 		// Traffic: A measure of how much demand is being placed on the service. This is measured using a high-level service-specific metric, like HTTP requests per second in the case of an HTTP REST API.
 		Contains(`promhttp_metric_handler_requests_in_flight`).
 		// Errors: The rate of requests that fail. The failures can be explicit (e.g., HTTP 500 errors) or implicit (e.g., an HTTP 200 OK response with a response body having too few items).
-		Contains(`promhttp_metric_handler_requests_total{code="500"}`).
-		// Saturation: How “full” is the service. This is a measure of the system utilization, emphasizing the resources that are most constrained (e.g., memory, I/O or CPU). Services degrade in performance as they approach high saturation.
-		Contains(`process_cpu_seconds_total`).
-		Contains(`process_resident_memory_bytes`)
+		Contains(`promhttp_metric_handler_requests_total{code="500"}`)
+
+	if os.Getenv("CI") == "true" {
+		body.
+			// Saturation: How “full” is the service. This is a measure of the system utilization, emphasizing the resources that are most constrained (e.g., memory, I/O or CPU). Services degrade in performance as they approach high saturation.
+			Contains(`process_cpu_seconds_total`).
+			Contains(`process_resident_memory_bytes`)
+	}
 }
 
 func (s *ArgoServerSuite) TestSubmitWorkflowTemplateFromGithubWebhook() {
@@ -283,7 +301,7 @@ metadata:
 				POST("/api/v1/events/argo/").
 				WithBytes([]byte(`{}`)).
 				Expect().
-				Status(200)
+				Status(500)
 		}).
 		Then().
 		ExpectAuditEvents(
@@ -293,7 +311,7 @@ metadata:
 			func(t *testing.T, e []corev1.Event) {
 				assert.Equal(t, "argo", e[0].InvolvedObject.Namespace)
 				assert.Equal(t, "WorkflowEventBindingError", e[0].Reason)
-				assert.Equal(t, "failed to dispatch event: failed to evaluate workflow template expression: unexpected token EOF (1:1)", e[0].Message)
+				assert.Equal(t, "failed to dispatch event: failed to evaluate workflow template expression: unable to evaluate expression '': unexpected token EOF (1:1)", e[0].Message)
 			},
 		)
 }
@@ -320,11 +338,20 @@ func (s *ArgoServerSuite) TestOauth() {
 
 func (s *ArgoServerSuite) TestUnauthorized() {
 	token := s.bearerToken
-	defer func() { s.bearerToken = token }()
-	s.bearerToken = "test-token"
-	s.e().GET("/api/v1/workflows/argo").
-		Expect().
-		Status(401)
+	s.T().Run("Bearer", func(t *testing.T) {
+		s.bearerToken = "test-token"
+		defer func() { s.bearerToken = token }()
+		s.e().GET("/api/v1/workflows/argo").
+			Expect().
+			Status(401)
+	})
+	s.T().Run("Basic", func(t *testing.T) {
+		s.username = "garbage"
+		defer func() { s.username = "" }()
+		s.e().GET("/api/v1/workflows/argo").
+			Expect().
+			Status(401)
+	})
 }
 
 func (s *ArgoServerSuite) TestCookieAuth() {
@@ -333,6 +360,19 @@ func (s *ArgoServerSuite) TestCookieAuth() {
 	s.bearerToken = ""
 	s.e().GET("/api/v1/workflows/argo").
 		WithHeader("Cookie", "authorization=Bearer "+token).
+		Expect().
+		Status(200)
+}
+
+// You could have multiple authorization headers, set by wildcard domain cookies in the case of some SSO implementations
+func (s *ArgoServerSuite) TestMultiCookieAuth() {
+	token := s.bearerToken
+	defer func() { s.bearerToken = token }()
+	s.bearerToken = ""
+	s.e().GET("/api/v1/workflows/argo").
+		WithCookie("authorization", "invalid1").
+		WithCookie("authorization", "Bearer "+token).
+		WithCookie("authorization", "invalid2").
 		Expect().
 		Status(200)
 }
@@ -820,7 +860,6 @@ func (s *ArgoServerSuite) TestWorkflowService() {
 	})
 
 	s.Run("Terminate", func() {
-		s.Need(fixtures.None(fixtures.K8SAPI, fixtures.Kubelet))
 		s.e().PUT("/api/v1/workflows/argo/" + name + "/terminate").
 			Expect().
 			Status(200)
@@ -839,7 +878,6 @@ func (s *ArgoServerSuite) TestWorkflowService() {
 	})
 
 	s.Run("Resubmit", func() {
-		s.Need(fixtures.BaseLayerArtifacts)
 		s.e().PUT("/api/v1/workflows/argo/" + name + "/resubmit").
 			WithBytes([]byte(`{"memoized": true}`)).
 			Expect().
@@ -1019,13 +1057,107 @@ func (s *ArgoServerSuite) TestArtifactServer() {
 			uid = metadata.UID
 		})
 
+	s.artifactServerRetrievalTests(name, uid)
+}
+
+func (s *ArgoServerSuite) TestArtifactServerAzure() {
+	if os.Getenv("AZURE") != "true" {
+		s.T().Skip("AZURE must be true to run Azure Storage e2e tests")
+	}
+	var uid types.UID
+	var name string
+	s.Given().
+		Workflow(`@testdata/artifact-workflow-azure.yaml`).
+		When().
+		SubmitWorkflow().
+		WaitForWorkflow(fixtures.ToBeArchived).
+		Then().
+		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
+			name = metadata.Name
+			uid = metadata.UID
+		})
+
+	s.artifactServerRetrievalTests(name, uid)
+}
+
+func (s *ArgoServerSuite) artifactServerRetrievalTests(name string, uid types.UID) {
 	s.Run("GetArtifact", func() {
-		s.e().GET("/artifacts/argo/" + name + "/" + name + "/main-file").
+		resp := s.e().GET("/artifacts/argo/" + name + "/" + name + "/main-file").
 			Expect().
-			Status(200).
-			Body().
+			Status(200)
+
+		resp.Body().
 			Contains(":) Hello Argo!")
+
+		resp.Header("Content-Security-Policy").
+			Equal("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
+
+		resp.Header("X-Frame-Options").
+			Equal("SAMEORIGIN")
 	})
+
+	// In this case, the artifact name is a file
+	s.Run("GetArtifactFile", func() {
+		resp := s.e().GET("/artifact-files/argo/workflows/" + name + "/" + name + "/outputs/main-file").
+			Expect().
+			Status(200)
+
+		resp.Body().
+			Contains(":) Hello Argo!")
+
+		resp.Header("Content-Security-Policy").
+			Equal("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
+
+		resp.Header("X-Frame-Options").
+			Equal("SAMEORIGIN")
+	})
+
+	// In this case, the artifact name is a directory
+	s.Run("GetArtifactFileDirectory", func() {
+		resp := s.e().GET("/artifact-files/argo/workflows/" + name + "/" + name + "/outputs/out/").
+			Expect().
+			Status(200)
+
+		resp.Body().
+			Contains("<a href=\"subdirectory/\">subdirectory/</a>")
+
+	})
+
+	// In this case, the filename specified in the request is actually a directory
+	s.Run("GetArtifactFileSubdirectory", func() {
+		resp := s.e().GET("/artifact-files/argo/workflows/" + name + "/" + name + "/outputs/out/subdirectory/").
+			Expect().
+			Status(200)
+
+		resp.Body().
+			Contains("<a href=\"sub-file-1\">sub-file-1</a>").
+			Contains("<a href=\"sub-file-2\">sub-file-2</a>")
+
+	})
+
+	// In this case, the filename specified in the request is a subdirectory file
+	s.Run("GetArtifactSubfile", func() {
+		resp := s.e().GET("/artifact-files/argo/workflows/" + name + "/" + name + "/outputs/out/subdirectory/sub-file-1").
+			Expect().
+			Status(200)
+
+		resp.Body().
+			Contains(":) Hello Argo!")
+
+		resp.Header("Content-Security-Policy").
+			Equal("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
+
+		resp.Header("X-Frame-Options").
+			Equal("SAMEORIGIN")
+	})
+
+	// In this case, the artifact name is a file
+	s.Run("GetArtifactBadFile", func() {
+		_ = s.e().GET("/artifact-files/argo/workflows/" + name + "/" + name + "/outputs/not-a-file").
+			Expect().
+			Status(500)
+	})
+
 	s.Run("GetArtifactByUID", func() {
 		s.e().DELETE("/api/v1/workflows/argo/" + name).
 			Expect().
@@ -1047,6 +1179,14 @@ func (s *ArgoServerSuite) TestArtifactServer() {
 			WithHeader("Cookie", "authorization=Bearer "+token).
 			Expect().
 			Status(200)
+	})
+
+	s.Run("GetArtifactFileByUID", func() {
+		s.e().GET("/artifact-files/argo/archived-workflows/{uid}/{name}/outputs/main-file", uid, name).
+			Expect().
+			Status(200).
+			Body().
+			Contains(":) Hello Argo!")
 	})
 }
 
@@ -1159,6 +1299,30 @@ spec:
 		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
 			uid = metadata.UID
 		})
+	var failedUid types.UID
+	var failedName string
+	s.Given().
+		Workflow(`
+metadata:
+  generateName: jughead-
+  labels:
+    foo: 3
+spec:
+  entrypoint: run-jughead
+  templates:
+    - name: run-jughead
+      container:
+        image: argoproj/argosay:v2
+        command: [sh, -c]
+        args: ["echo intentional failure; exit 1"]`).
+		When().
+		SubmitWorkflow().
+		WaitForWorkflow(fixtures.ToBeArchived).
+		Then().
+		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
+			failedUid = metadata.UID
+			failedName = metadata.Name
+		})
 	s.Given().
 		Workflow(`
 metadata:
@@ -1184,11 +1348,11 @@ spec:
 		{"ListEquals", "foo=1", 1},
 		{"ListDoubleEquals", "foo==1", 1},
 		{"ListIn", "foo in (1)", 1},
-		{"ListNotEquals", "foo!=1", 1},
-		{"ListNotIn", "foo notin (1)", 1},
-		{"ListExists", "foo", 2},
-		{"ListGreaterThan0", "foo>0", 2},
-		{"ListGreaterThan1", "foo>1", 1},
+		{"ListNotEquals", "foo!=1", 2},
+		{"ListNotIn", "foo notin (1)", 2},
+		{"ListExists", "foo", 3},
+		{"ListGreaterThan0", "foo>0", 3},
+		{"ListGreaterThan1", "foo>1", 2},
 		{"ListLessThan1", "foo<1", 0},
 		{"ListLessThan2", "foo<2", 1},
 	} {
@@ -1268,6 +1432,36 @@ spec:
 			NotNull()
 	})
 
+	s.Run("DeleteForRetry", func() {
+		s.e().DELETE("/api/v1/workflows/argo/" + failedName).
+			Expect().
+			Status(200)
+	})
+
+	s.Run("Retry", func() {
+		s.e().PUT("/api/v1/archived-workflows/{uid}/retry", failedUid).
+			WithBytes([]byte(`{"namespace": "argo"}`)).
+			Expect().
+			Status(200).
+			JSON().
+			Path("$.metadata.name").
+			NotNull()
+		s.e().PUT("/api/v1/archived-workflows/{uid}/retry", failedUid).
+			WithBytes([]byte(`{"namespace": "argo"}`)).
+			Expect().
+			Status(409)
+	})
+
+	s.Run("Resubmit", func() {
+		s.e().PUT("/api/v1/archived-workflows/{uid}/resubmit", uid).
+			WithBytes([]byte(`{"namespace": "argo", "memoized": false}`)).
+			Expect().
+			Status(200).
+			JSON().
+			Path("$.metadata.name").
+			NotNull()
+	})
+
 	s.Run("Delete", func() {
 		s.e().DELETE("/api/v1/archived-workflows/{uid}", uid).
 			Expect().
@@ -1276,6 +1470,32 @@ spec:
 			Expect().
 			Status(404)
 	})
+
+	s.Run("ListLabelKeys", func() {
+		j := s.e().GET("/api/v1/archived-workflows-label-keys").
+			Expect().
+			Status(200).
+			JSON()
+		j.
+			Path("$.items").
+			Array().
+			Length().
+			Gt(0)
+	})
+
+	s.Run("ListLabelValues", func() {
+		j := s.e().GET("/api/v1/archived-workflows-label-values").
+			WithQuery("listOptions.labelSelector", "workflows.argoproj.io/test").
+			Expect().
+			Status(200).
+			JSON()
+		j.
+			Path("$.items").
+			Array().
+			Length().
+			Equal(1)
+	})
+
 }
 
 func (s *ArgoServerSuite) TestWorkflowTemplateService() {
@@ -1756,6 +1976,19 @@ func (s *ArgoServerSuite) TestSensorService() {
 		s.e().DELETE("/api/v1/sensors/argo/test-sensor").
 			Expect().
 			Status(200)
+	})
+}
+
+func (s *ArgoServerSuite) TestRateLimitHeader() {
+	s.Run("GetRateLimit", func() {
+		resp := s.e().GET("/api/v1/version").
+			Expect().
+			Status(200)
+
+		resp.Header("X-RateLimit-Limit").NotEmpty()
+		resp.Header("X-RateLimit-Remaining").NotEmpty()
+		resp.Header("X-RateLimit-Reset").NotEmpty()
+		resp.Header("Retry-After").Empty()
 	})
 }
 

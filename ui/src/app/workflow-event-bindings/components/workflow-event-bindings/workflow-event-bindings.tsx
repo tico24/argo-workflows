@@ -11,6 +11,7 @@ import {Graph} from '../../../shared/components/graph/types';
 import {Loading} from '../../../shared/components/loading';
 import {NamespaceFilter} from '../../../shared/components/namespace-filter';
 import {ResourceEditor} from '../../../shared/components/resource-editor/resource-editor';
+import {useCollectEvent} from '../../../shared/components/use-collect-event';
 import {ZeroState} from '../../../shared/components/zero-state';
 import {Context} from '../../../shared/context';
 import {Footnote} from '../../../shared/footnote';
@@ -85,6 +86,8 @@ export const WorkflowEventBindings = ({match, location, history}: RouteComponent
             .catch(setError);
     }, [namespace]);
 
+    useCollectEvent('openedWorkflowEventBindings');
+
     return (
         <Page
             title='Workflow Event Bindings'
@@ -102,7 +105,7 @@ export const WorkflowEventBindings = ({match, location, history}: RouteComponent
                 <ZeroState>
                     <p>{introductionText}</p>
                     <p>
-                        Once you've created a a workflow event binding, you can test it from the CLI using <code>curl</code>, for example:
+                        Once you've created a workflow event binding, you can test it from the CLI using <code>curl</code>, for example:
                     </p>
                     <p>
                         <code>

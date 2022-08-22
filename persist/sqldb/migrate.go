@@ -33,10 +33,10 @@ func ternary(condition bool, left, right change) change {
 	}
 }
 
-func (m migrate) Exec(ctx context.Context) error {
+func (m migrate) Exec(ctx context.Context) (err error) {
 	{
 		// poor mans SQL migration
-		_, err := m.session.Exec("create table if not exists schema_history(schema_version int not null)")
+		_, err = m.session.Exec("create table if not exists schema_history(schema_version int not null)")
 		if err != nil {
 			return err
 		}
@@ -44,14 +44,18 @@ func (m migrate) Exec(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		defer func() {
+			tmpErr := rs.Close()
+			if err == nil {
+				err = tmpErr
+			}
+		}()
 		if !rs.Next() {
 			_, err := m.session.Exec("insert into schema_history values(-1)")
 			if err != nil {
 				return err
 			}
-		}
-		err = rs.Close()
-		if err != nil {
+		} else if err := rs.Err(); err != nil {
 			return err
 		}
 	}
@@ -249,6 +253,11 @@ func (m migrate) Exec(ctx context.Context) error {
 		ansiSQLChange(`create index ` + m.tableName + `_i1 on ` + m.tableName + ` (clustername,namespace,updatedat)`),
 		// index to find records that need deleting, this omits namespaces as this might be null
 		ansiSQLChange(`create index argo_archived_workflows_i2 on argo_archived_workflows (clustername,instanceid,finishedat)`),
+		// add argo_archived_workflows name index for prefix searching performance
+		ansiSQLChange(`create index argo_archived_workflows_i3 on argo_archived_workflows (clustername,instanceid,name)`),
+		// add indexes for list archived workflow performance. #8836
+		ansiSQLChange(`create index argo_archived_workflows_i4 on argo_archived_workflows (startedat)`),
+		ansiSQLChange(`create index argo_archived_workflows_labels_i1 on argo_archived_workflows_labels (name,value)`),
 	} {
 		err := m.applyChange(ctx, changeSchemaVersion, change)
 		if err != nil {

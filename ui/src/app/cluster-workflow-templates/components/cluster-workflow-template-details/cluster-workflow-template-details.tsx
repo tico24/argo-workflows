@@ -59,6 +59,7 @@ export const ClusterWorkflowTemplateDetails = ({history, location, match}: Route
             .then(info => setNamespace(Utils.getNamespaceWithDefault(info.managedNamespace)))
             .then(() => setError(null))
             .catch(setError);
+        services.info.collectEvent('openedClusterWorkflowTemplateDetails').then();
     }, []);
 
     return (
@@ -123,14 +124,14 @@ export const ClusterWorkflowTemplateDetails = ({history, location, match}: Route
                 )}
             </>
             {template && (
-                <SlidingPanel isShown={!!sidePanel} onClose={() => setSidePanel(null)} isNarrow={true}>
+                <SlidingPanel isShown={!!sidePanel} onClose={() => setSidePanel(null)} isMiddle={true}>
                     <SubmitWorkflowPanel
                         kind='ClusterWorkflowTemplate'
                         namespace={namespace}
                         name={template.metadata.name}
                         entrypoint={template.spec.entrypoint}
-                        entrypoints={(template.spec.templates || []).map(t => t.name)}
-                        parameters={template.spec.arguments.parameters || []}
+                        templates={template.spec.templates || []}
+                        workflowParameters={template.spec.arguments.parameters || []}
                     />
                 </SlidingPanel>
             )}

@@ -1,7 +1,5 @@
 # Workflow Templates
 
-![GA](assets/ga.svg)
-
 > v2.4 and after
 
 ## Introduction
@@ -19,8 +17,9 @@ in the past. However, a quick description should clarify each and their differen
 `Workflow`, you must define at least one (but usually more than one) `template` to run. This `template` can be of type
 `container`, `script`, `dag`, `steps`, `resource`, or `suspend` and can be referenced by an `entrypoint` or by other
 `dag`, and `step` templates.
- 
+
 Here is an example of a `Workflow` with two `templates`:
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -55,8 +54,7 @@ and `WorkflowTemplates` on your cluster. To see how, please see [Referencing Oth
 
 > v2.7 and after
 
-`WorkflowTemplates` in v2.7 and after are full `Workflow` definitions. You can take any existing `Workflow` you may have
-and convert it to a `WorkflowTemplate` by substituting `kind: Workflow` to `kind: WorkflowTemplate`.
+In v2.7 and after, all the fields in `WorkflowSpec` (except for `priority` that must be configured in a `WorkflowSpec` itself) are supported for `WorkflowTemplates`. You can take any existing `Workflow` you may have and convert it to a `WorkflowTemplate` by substituting `kind: Workflow` to `kind: WorkflowTemplate`.
 
 > v2.4 – 2.6
 
@@ -127,12 +125,89 @@ spec:
       example-label: example-value
 ```
 
+### Working with parameters
+
+When working with parameters in a `WorkflowTemplate`, please note the following:
+
+- When working with global parameters, you can instantiate your global variables in your `Workflow`
+and then directly reference them in your `WorkflowTemplate`. Below is a working example:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: hello-world-template-global-arg
+spec:
+  serviceAccountName: argo
+  templates:
+    - name: hello-world
+      container:
+        image: docker/whalesay
+        command: [cowsay]
+        args: ["{{workflow.parameters.global-parameter}}"]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hello-world-wf-global-arg-
+spec:
+  serviceAccountName: argo
+  entrypoint: whalesay
+  arguments:
+    parameters:
+      - name: global-parameter
+        value: hello
+  templates:
+    - name: whalesay
+      steps:
+        - - name: hello-world
+            templateRef:
+              name: hello-world-template-global-arg
+              template: hello-world
+```
+
+- When working with local parameters, the values of local parameters must be supplied at the template definition inside
+the `WorkflowTemplate`. Below is a working example:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: hello-world-template-local-arg
+spec:
+  templates:
+    - name: hello-world
+      inputs:
+        parameters:
+          - name: msg
+            value: "hello world"
+      container:
+        image: docker/whalesay
+        command: [cowsay]
+        args: ["{{inputs.parameters.msg}}"]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hello-world-local-arg-
+spec:
+  entrypoint: whalesay
+  templates:
+    - name: whalesay
+      steps:
+        - - name: hello-world
+            templateRef:
+              name: hello-world-template-local-arg
+              template: hello-world
+```
+
 ## Referencing other `WorkflowTemplates`
 
 You can reference `templates` from another `WorkflowTemplates` (see the [difference between the two](#workflowtemplate-vs-template)) using a `templateRef` field.
 Just as how you reference other `templates` within the same `Workflow`, you should do so from a `steps` or `dag` template.
 
 Here is an example from a `steps` template:
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -154,6 +229,7 @@ spec:
 ```
 
 You can also do so similarly with a `dag` template:
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -180,6 +256,7 @@ This includes both using `template` and `templateRef`.
 This behavior is deprecated, no longer supported, and will be removed in a future version.
 
 Here is an example of a **deprecated** reference that **should not be used**:
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -206,9 +283,12 @@ to pass in "live" arguments and reference other templates (those other templates
 This behavior has been problematic and dangerous. It causes confusion and has design inconsistencies.
 
 > 2.9 and after
-#### Create `Workflow` from `WorkflowTemplate` Spec
-You can create `Workflow` from `WorkflowTemplate` spec using `workflowTemplateRef`. If you pass the arguments to created `Workflow`, it will be merged with WorkflowTemplate arguments.
+
+### Create `Workflow` from `WorkflowTemplate` Spec
+
+You can create `Workflow` from `WorkflowTemplate` spec using `workflowTemplateRef`. If you pass the arguments to created `Workflow`, it will be merged with workflow template arguments.
 Here is an example for referring `WorkflowTemplate` as Workflow with passing `entrypoint` and `Workflow Arguments` to `WorkflowTemplate`
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -225,6 +305,7 @@ spec:
 ```  
 
 Here is an example of a referring `WorkflowTemplate` as Workflow and using `WorkflowTemplates`'s `entrypoint` and `Workflow Arguments`
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -242,13 +323,13 @@ spec:
 
 You can create some example templates as follows:
 
-```
+```bash
 argo template create https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/workflow-template/templates.yaml
 ```
 
 Then submit a workflow using one of those templates:
 
-```
+```bash
 argo submit https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/workflow-template/hello-world.yaml
 ```
 
@@ -256,17 +337,15 @@ argo submit https://raw.githubusercontent.com/argoproj/argo-workflows/master/exa
 
 Then submit a `WorkflowTemplate` as a `Workflow`:
 
-```sh
+```bash
 argo submit --from workflowtemplate/workflow-template-submittable
 ```
 
 If you need to submit a `WorkflowTemplate` as a `Workflow` with parameters:
 
-```sh
+```bash
 argo submit --from workflowtemplate/workflow-template-submittable -p param1=value1
 ```
-
-
 
 ### `kubectl`
 
@@ -279,3 +358,36 @@ Using `kubectl apply -f` and `kubectl get wftmpl`
 ### UI
 
 `WorkflowTemplate` resources can also be managed by the UI
+
+Users can specify options under `enum` to enable drop-down list selection when submitting `WorkflowTemplate`s from the UI.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: workflow-template-with-enum-values
+spec:
+  entrypoint: argosay
+  arguments:
+    parameters:
+      - name: message
+        value: one
+        enum:
+          -   one
+          -   two
+          -   three
+  templates:
+    - name: argosay
+      inputs:
+        parameters:
+          - name: message
+            value: '{{workflow.parameters.message}}'
+      container:
+        name: main
+        image: 'argoproj/argosay:v2'
+        command:
+          - /argosay
+        args:
+          - echo
+          - '{{inputs.parameters.message}}'
+```

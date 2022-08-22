@@ -2,17 +2,23 @@
 
 ## What's New?
 
-Find out on [our blog](https://blog.argoproj.io).
+Find out on [our blog](https://blog.argoproj.io) and [changelog](https://github.com/argoproj/argo-workflows/blob/master/CHANGELOG.md).
 
-## Argo CLI
+## Breaking Changes and Known Issues
 
-### Mac
+Can be found in the [installation guide](https://argoproj.github.io/argo-workflows/installation/).
+
+## Installation
+
+### CLI
+
+#### Mac
 
 Available via `curl`
 
-```sh
+```bash
 # Download the binary
-curl -sLO https://github.com/argoproj/argo/releases/download/${version}/argo-darwin-amd64.gz
+curl -sLO https://github.com/argoproj/argo-workflows/releases/download/${version}/argo-darwin-amd64.gz
 
 # Unzip
 gunzip argo-darwin-amd64.gz
@@ -27,13 +33,13 @@ mv ./argo-darwin-amd64 /usr/local/bin/argo
 argo version
 ```
 
-### Linux
+#### Linux
 
 Available via `curl`
 
-```sh
+```bash
 # Download the binary
-curl -sLO https://github.com/argoproj/argo/releases/download/${version}/argo-linux-amd64.gz
+curl -sLO https://github.com/argoproj/argo-workflows/releases/download/${version}/argo-linux-amd64.gz
 
 # Unzip
 gunzip argo-linux-amd64.gz
@@ -48,9 +54,9 @@ mv ./argo-linux-amd64 /usr/local/bin/argo
 argo version
 ```
 
-## Install 
+### Controller and Server
 
-```sh
+```bash
 kubectl create namespace argo
 kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/${version}/install.yaml
 ```

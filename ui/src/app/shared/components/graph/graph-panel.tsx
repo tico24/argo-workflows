@@ -51,7 +51,7 @@ const merge = (a: {[key: string]: boolean}, b: {[key: string]: boolean}) => b &&
 export const GraphPanel = (props: Props) => {
     const storage = new ScopedLocalStorage('graph/' + props.storageScope);
     const [nodeSize, setNodeSize] = React.useState<number>(storage.getItem('nodeSize', props.nodeSize));
-    const [horizontal, setHorizontal] = React.useState<boolean>(storage.getItem('horizontal', props.horizontal));
+    const [horizontal, setHorizontal] = React.useState<boolean>(storage.getItem('horizontal', !!props.horizontal));
     const [fast, setFast] = React.useState<boolean>(storage.getItem('fast', false));
     const [nodeGenres, setNodeGenres] = React.useState<NodeGenres>(storage.getItem('nodeGenres', props.nodeGenres));
     const [nodeClassNames, setNodeClassNames] = React.useState<NodeClassNames>(storage.getItem('nodeClassNames', props.nodeClassNames));
@@ -134,16 +134,16 @@ export const GraphPanel = (props: Props) => {
                         ]}
                     />
                     <a onClick={() => setHorizontal(s => !s)} title='Horizontal/vertical layout'>
-                        <i className={`fa ${horizontal ? 'fa-long-arrow-alt-right' : 'fa-long-arrow-alt-down'}`} />
+                        <i className={`fa ${horizontal ? 'fa-long-arrow-alt-right' : 'fa-long-arrow-alt-down'} fa-fw`} />
                     </a>
                     <a onClick={() => setNodeSize(s => s * 1.2)} title='Zoom in'>
-                        <i className='fa fa-search-plus' />
+                        <i className='fa fa-search-plus fa-fw' />
                     </a>
                     <a onClick={() => setNodeSize(s => s / 1.2)} title='Zoom out'>
-                        <i className='fa fa-search-minus' />
+                        <i className='fa fa-search-minus fa-fw' />
                     </a>
                     <a onClick={() => setFast(s => !s)} title='Use faster, but less pretty renderer' className={fast ? 'active' : ''}>
-                        <i className='fa fa-bolt' />
+                        <i className='fa fa-bolt fa-fw' />
                     </a>
                     {props.options}
                     <div className='node-search-bar'>
@@ -205,6 +205,7 @@ export const GraphPanel = (props: Props) => {
                                         <title>{n}</title>
                                         <g
                                             className={`node ${label.classNames || ''} ${props.selectedNode === n ? ' selected' : ''}`}
+                                            style={{strokeWidth: nodeSize / 15}}
                                             onClick={() => props.onNodeSelect && props.onNodeSelect(n)}>
                                             {((props.iconShapes || {})[label.genre] || props.defaultIconShape) === 'circle' ? (
                                                 <circle r={nodeSize / 2} className='bg' />

@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -8,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
 )
 
@@ -28,6 +31,41 @@ func TestWorkflows(t *testing.T) {
 	t.Run("Filter", func(t *testing.T) {
 		assert.Len(t, wfs.Filter(func(wf Workflow) bool { return true }), 4)
 		assert.Len(t, wfs.Filter(func(wf Workflow) bool { return false }), 0)
+	})
+}
+
+func TestGetTemplateByName(t *testing.T) {
+	t.Run("Spec", func(t *testing.T) {
+		wf := &Workflow{
+			Spec: WorkflowSpec{
+				Templates: []Template{
+					{Name: "my-tmpl"},
+				},
+			},
+		}
+		assert.NotNil(t, wf.GetTemplateByName("my-tmpl"))
+	})
+	t.Run("StoredWorkflowSpec", func(t *testing.T) {
+		wf := &Workflow{
+			Status: WorkflowStatus{
+				StoredWorkflowSpec: &WorkflowSpec{
+					Templates: []Template{
+						{Name: "my-tmpl"},
+					},
+				},
+			},
+		}
+		assert.NotNil(t, wf.GetTemplateByName("my-tmpl"))
+	})
+	t.Run("StoredTemplates", func(t *testing.T) {
+		wf := &Workflow{
+			Status: WorkflowStatus{
+				StoredTemplates: map[string]Template{
+					"": {Name: "my-tmpl"},
+				},
+			},
+		}
+		assert.NotNil(t, wf.GetTemplateByName("my-tmpl"))
 	})
 }
 
@@ -79,6 +117,283 @@ func TestWorkflowHappenedBetween(t *testing.T) {
 	}))
 }
 
+func TestWorkflowHasArtifactGC(t *testing.T) {
+	tests := []struct {
+		name                      string
+		workflowArtGCStrategySpec string
+		artifactGCStrategySpec    string
+		expectedResult            bool
+	}{
+		{
+			name: "WorkflowSpecGC_Completion",
+			workflowArtGCStrategySpec: `
+              artifactGC:
+                strategy: OnWorkflowCompletion`,
+			artifactGCStrategySpec: "",
+			expectedResult:         true,
+		},
+		{
+			name:                      "ArtifactSpecGC_Completion",
+			workflowArtGCStrategySpec: "",
+			artifactGCStrategySpec: `
+                      artifactGC:
+                        strategy: OnWorkflowCompletion`,
+			expectedResult: true,
+		},
+		{
+			name: "WorkflowSpecGC_Deletion",
+			workflowArtGCStrategySpec: `
+              artifactGC:
+                strategy: OnWorkflowDeletion`,
+			artifactGCStrategySpec: "",
+			expectedResult:         true,
+		},
+		{
+			name:                      "ArtifactSpecGC_Deletion",
+			workflowArtGCStrategySpec: "",
+			artifactGCStrategySpec: `
+                      artifactGC:
+                        strategy: OnWorkflowDeletion`,
+			expectedResult: true,
+		},
+		{
+			name:                      "NoGC",
+			workflowArtGCStrategySpec: "",
+			artifactGCStrategySpec:    "",
+			expectedResult:            false,
+		},
+		{
+			name: "WorkflowSpecGCNone",
+			workflowArtGCStrategySpec: `
+              artifactGC:
+                strategy: ""`,
+			artifactGCStrategySpec: "",
+			expectedResult:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			workflowSpec := fmt.Sprintf(`
+            apiVersion: argoproj.io/v1alpha1
+            kind: Workflow
+            metadata:
+              generateName: artifact-passing-
+            spec:
+              entrypoint: whalesay
+              %s
+              templates:
+              - name: whalesay
+                container:
+                  image: docker/whalesay:latest
+                  command: [sh, -c]
+                  args: ["sleep 1; cowsay hello world | tee /tmp/hello_world.txt"]
+                outputs:
+                  artifacts:
+                    - name: out
+                      path: /out
+                      s3:
+                        key: out
+                        %s`, tt.workflowArtGCStrategySpec, tt.artifactGCStrategySpec)
+
+			wf := MustUnmarshalWorkflow(workflowSpec)
+
+			hasArtifact := wf.HasArtifactGC()
+
+			assert.Equal(t, hasArtifact, tt.expectedResult)
+		})
+	}
+
+}
+
+func TestWorkflowGetArtifactGCStrategy(t *testing.T) {
+	tests := []struct {
+		name                      string
+		workflowArtGCStrategySpec string
+		artifactGCStrategySpec    string
+		expectedStrategy          ArtifactGCStrategy
+	}{
+		{
+			name: "WorkflowLevel",
+			workflowArtGCStrategySpec: `
+              artifactGC:
+                strategy: OnWorkflowCompletion`,
+			artifactGCStrategySpec: "",
+			expectedStrategy:       ArtifactGCOnWorkflowCompletion,
+		},
+		{
+			name: "ArtifactOverride",
+			workflowArtGCStrategySpec: `
+              artifactGC:
+                strategy: OnWorkflowCompletion`,
+			artifactGCStrategySpec: `
+                      artifactGC:
+                        strategy: Never`,
+			expectedStrategy: ArtifactGCNever,
+		},
+		{
+			name: "NotDefined",
+			workflowArtGCStrategySpec: `
+              artifactGC:`,
+			artifactGCStrategySpec: `
+                      artifactGC:`,
+			expectedStrategy: ArtifactGCNever,
+		},
+		{
+			name: "NotDefined2",
+			workflowArtGCStrategySpec: `
+              artifactGC:
+                strategy: ""`,
+			artifactGCStrategySpec: `
+                      artifactGC:
+                        strategy: ""`,
+			expectedStrategy: ArtifactGCNever,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			workflowSpec := fmt.Sprintf(`
+            apiVersion: argoproj.io/v1alpha1
+            kind: Workflow
+            metadata:
+              generateName: artifact-passing-
+            spec:
+              entrypoint: whalesay
+              %s
+              templates:
+              - name: whalesay
+                container:
+                  image: docker/whalesay:latest
+                  command: [sh, -c]
+                  args: ["sleep 1; cowsay hello world | tee /tmp/hello_world.txt"]
+                outputs:
+                  artifacts:
+                    - name: out
+                      path: /out
+                      s3:
+                        key: out
+                        %s`, tt.workflowArtGCStrategySpec, tt.artifactGCStrategySpec)
+
+			wf := MustUnmarshalWorkflow(workflowSpec)
+			a := wf.Spec.Templates[0].Outputs.Artifacts[0]
+			gcStrategy := wf.GetArtifactGCStrategy(&a)
+			assert.Equal(t, tt.expectedStrategy, gcStrategy)
+		})
+	}
+
+}
+
+func TestArtifact_ValidatePath(t *testing.T) {
+	t.Run("empty path fails", func(t *testing.T) {
+		a1 := Artifact{Name: "a1", Path: ""}
+		err := a1.CleanPath()
+		assert.EqualError(t, err, "Artifact 'a1' did not specify a path")
+		assert.Equal(t, "", a1.Path)
+	})
+
+	t.Run("directory traversal above safe base dir fails", func(t *testing.T) {
+		var assertPathError = func(err error) {
+			if assert.Error(t, err) {
+				assert.Contains(t, err.Error(), "Directory traversal is not permitted")
+			}
+		}
+
+		a1 := Artifact{Name: "a1", Path: "/tmp/.."}
+		assertPathError(a1.CleanPath())
+		assert.Equal(t, "/tmp/..", a1.Path)
+
+		a2 := Artifact{Name: "a2", Path: "/tmp/../"}
+		assertPathError(a2.CleanPath())
+		assert.Equal(t, "/tmp/../", a2.Path)
+
+		a3 := Artifact{Name: "a3", Path: "/tmp/../../etc/passwd"}
+		assertPathError(a3.CleanPath())
+		assert.Equal(t, "/tmp/../../etc/passwd", a3.Path)
+
+		a4 := Artifact{Name: "a4", Path: "/tmp/../tmp"}
+		assertPathError(a4.CleanPath())
+		assert.Equal(t, "/tmp/../tmp", a4.Path)
+
+		a5 := Artifact{Name: "a5", Path: "/tmp/../tmp/"}
+		assertPathError(a5.CleanPath())
+		assert.Equal(t, "/tmp/../tmp/", a5.Path)
+
+		a6 := Artifact{Name: "a6", Path: "/tmp/subdir/../../tmp/subdir/"}
+		assertPathError(a6.CleanPath())
+		assert.Equal(t, "/tmp/subdir/../../tmp/subdir/", a6.Path)
+
+		a7 := Artifact{Name: "a7", Path: "/tmp/../tmp-imposter"}
+		assertPathError(a7.CleanPath())
+		assert.Equal(t, "/tmp/../tmp-imposter", a7.Path)
+	})
+
+	t.Run("directory traversal with no safe base dir succeeds", func(t *testing.T) {
+		a1 := Artifact{Name: "a1", Path: ".."}
+		err := a1.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "..", a1.Path)
+
+		a2 := Artifact{Name: "a2", Path: "../"}
+		err = a2.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "..", a2.Path)
+
+		a3 := Artifact{Name: "a3", Path: "../.."}
+		err = a3.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "../..", a3.Path)
+
+		a4 := Artifact{Name: "a4", Path: "../etc/passwd"}
+		err = a4.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "../etc/passwd", a4.Path)
+	})
+
+	t.Run("directory traversal ending within safe base dir succeeds", func(t *testing.T) {
+		a1 := Artifact{Name: "a1", Path: "/tmp/../tmp/abcd"}
+		err := a1.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "/tmp/abcd", a1.Path)
+
+		a2 := Artifact{Name: "a2", Path: "/tmp/subdir/../../tmp/subdir/abcd"}
+		err = a2.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "/tmp/subdir/abcd", a2.Path)
+	})
+
+	t.Run("artifact path filenames are allowed to contain double dots", func(t *testing.T) {
+		a1 := Artifact{Name: "a1", Path: "/tmp/..artifact.txt"}
+		err := a1.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "/tmp/..artifact.txt", a1.Path)
+
+		a2 := Artifact{Name: "a2", Path: "/tmp/artif..t.txt"}
+		err = a2.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "/tmp/artif..t.txt", a2.Path)
+	})
+
+	t.Run("normal artifact path succeeds", func(t *testing.T) {
+		a1 := Artifact{Name: "a1", Path: "/tmp"}
+		err := a1.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "/tmp", a1.Path)
+
+		a2 := Artifact{Name: "a2", Path: "/tmp/"}
+		err = a2.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "/tmp", a2.Path)
+
+		a3 := Artifact{Name: "a3", Path: "/tmp/abcd/some-artifact.txt"}
+		err = a3.CleanPath()
+		assert.NoError(t, err)
+		assert.Equal(t, "/tmp/abcd/some-artifact.txt", a3.Path)
+	})
+}
+
 func TestArtifactLocation_IsArchiveLogs(t *testing.T) {
 	var l *ArtifactLocation
 	assert.False(t, l.IsArchiveLogs())
@@ -100,6 +415,15 @@ func TestArtifactoryArtifact(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "http://my-host/my-key", a.URL)
 	assert.Equal(t, "/my-key", key, "has leading slash")
+}
+
+func TestAzureArtifact(t *testing.T) {
+	a := &AzureArtifact{Blob: "my-blob", AzureBlobContainer: AzureBlobContainer{Container: "my-container"}}
+	assert.True(t, a.HasLocation())
+	assert.NoError(t, a.SetKey("my-blob"))
+	key, err := a.GetKey()
+	assert.NoError(t, err)
+	assert.Equal(t, "my-blob", key)
 }
 
 func TestGitArtifact(t *testing.T) {
@@ -192,15 +516,38 @@ func TestArtifactLocation_Relocate(t *testing.T) {
 
 func TestArtifactLocation_Get(t *testing.T) {
 	var l *ArtifactLocation
-	assert.Nil(t, l.Get())
-	assert.Nil(t, (&ArtifactLocation{}).Get())
-	assert.IsType(t, &GitArtifact{}, (&ArtifactLocation{Git: &GitArtifact{}}).Get())
-	assert.IsType(t, &GCSArtifact{}, (&ArtifactLocation{GCS: &GCSArtifact{}}).Get())
-	assert.IsType(t, &HDFSArtifact{}, (&ArtifactLocation{HDFS: &HDFSArtifact{}}).Get())
-	assert.IsType(t, &HTTPArtifact{}, (&ArtifactLocation{HTTP: &HTTPArtifact{}}).Get())
-	assert.IsType(t, &OSSArtifact{}, (&ArtifactLocation{OSS: &OSSArtifact{}}).Get())
-	assert.IsType(t, &RawArtifact{}, (&ArtifactLocation{Raw: &RawArtifact{}}).Get())
-	assert.IsType(t, &S3Artifact{}, (&ArtifactLocation{S3: &S3Artifact{}}).Get())
+
+	v, err := l.Get()
+	assert.Nil(t, v)
+	assert.EqualError(t, err, "key unsupported: cannot get key for artifact location, because it is invalid")
+
+	v, err = (&ArtifactLocation{}).Get()
+	assert.Nil(t, v)
+	assert.EqualError(t, err, "You need to configure artifact storage. More information on how to do this can be found in the docs: https://argoproj.github.io/argo-workflows/configure-artifact-repository/")
+
+	v, _ = (&ArtifactLocation{Azure: &AzureArtifact{}}).Get()
+	assert.IsType(t, &AzureArtifact{}, v)
+
+	v, _ = (&ArtifactLocation{Git: &GitArtifact{}}).Get()
+	assert.IsType(t, &GitArtifact{}, v)
+
+	v, _ = (&ArtifactLocation{GCS: &GCSArtifact{}}).Get()
+	assert.IsType(t, &GCSArtifact{}, v)
+
+	v, _ = (&ArtifactLocation{HDFS: &HDFSArtifact{}}).Get()
+	assert.IsType(t, &HDFSArtifact{}, v)
+
+	v, _ = (&ArtifactLocation{HTTP: &HTTPArtifact{}}).Get()
+	assert.IsType(t, &HTTPArtifact{}, v)
+
+	v, _ = (&ArtifactLocation{OSS: &OSSArtifact{}}).Get()
+	assert.IsType(t, &OSSArtifact{}, v)
+
+	v, _ = (&ArtifactLocation{Raw: &RawArtifact{}}).Get()
+	assert.IsType(t, &RawArtifact{}, v)
+
+	v, _ = (&ArtifactLocation{S3: &S3Artifact{}}).Get()
+	assert.IsType(t, &S3Artifact{}, v)
 }
 
 func TestArtifactLocation_SetType(t *testing.T) {
@@ -212,6 +559,11 @@ func TestArtifactLocation_SetType(t *testing.T) {
 		l := &ArtifactLocation{}
 		assert.NoError(t, l.SetType(&ArtifactoryArtifact{}))
 		assert.NotNil(t, l.Artifactory)
+	})
+	t.Run("Azure", func(t *testing.T) {
+		l := &ArtifactLocation{}
+		assert.NoError(t, l.SetType(&AzureArtifact{}))
+		assert.NotNil(t, l.Azure)
 	})
 	t.Run("GCS", func(t *testing.T) {
 		l := &ArtifactLocation{}
@@ -243,6 +595,11 @@ func TestArtifactLocation_SetType(t *testing.T) {
 		assert.NoError(t, l.SetType(&S3Artifact{}))
 		assert.NotNil(t, l.S3)
 	})
+	t.Run("Azure", func(t *testing.T) {
+		l := &ArtifactLocation{}
+		assert.NoError(t, l.SetType(&AzureArtifact{}))
+		assert.NotNil(t, l.Azure)
+	})
 }
 
 func TestArtifactLocation_Key(t *testing.T) {
@@ -268,6 +625,12 @@ func TestArtifactLocation_Key(t *testing.T) {
 		err := l.AppendToKey("my-file")
 		assert.NoError(t, err)
 		assert.Equal(t, "http://my-host/my-dir/my-file?a=1", l.Artifactory.URL, "appends to Artifactory path")
+	})
+	t.Run("Azure", func(t *testing.T) {
+		l := &ArtifactLocation{Azure: &AzureArtifact{Blob: "my-dir"}}
+		err := l.AppendToKey("my-file")
+		assert.NoError(t, err)
+		assert.Equal(t, "my-dir/my-file", l.Azure.Blob, "appends to Azure Blob name")
 	})
 	t.Run("Git", func(t *testing.T) {
 		l := &ArtifactLocation{Git: &GitArtifact{}}
@@ -351,6 +714,79 @@ func TestArtifact_GetArchive(t *testing.T) {
 	assert.Equal(t, &ArchiveStrategy{None: &NoneStrategy{}}, (&Artifact{Archive: &ArchiveStrategy{None: &NoneStrategy{}}}).GetArchive())
 }
 
+func TestArtifactGC_GetStrategy(t *testing.T) {
+	t.Run("Nil", func(t *testing.T) {
+		var artifactGC *ArtifactGC
+		assert.Equal(t, ArtifactGCStrategyUndefined, artifactGC.GetStrategy())
+	})
+	t.Run("Unspecified", func(t *testing.T) {
+		var artifactGC = &ArtifactGC{}
+		assert.Equal(t, ArtifactGCStrategyUndefined, artifactGC.GetStrategy())
+	})
+	t.Run("Specified", func(t *testing.T) {
+		var artifactGC = &ArtifactGC{Strategy: ArtifactGCOnWorkflowCompletion}
+		assert.Equal(t, ArtifactGCOnWorkflowCompletion, artifactGC.GetStrategy())
+	})
+}
+
+func TestPodGCStrategy_IsValid(t *testing.T) {
+	for _, s := range []PodGCStrategy{
+		PodGCOnPodNone,
+		PodGCOnPodCompletion,
+		PodGCOnPodSuccess,
+		PodGCOnWorkflowCompletion,
+		PodGCOnWorkflowSuccess,
+	} {
+		t.Run(string(s), func(t *testing.T) {
+			assert.True(t, s.IsValid())
+		})
+	}
+	t.Run("Invalid", func(t *testing.T) {
+		assert.False(t, PodGCStrategy("Foo").IsValid())
+	})
+}
+
+func TestPodGC_GetStrategy(t *testing.T) {
+	t.Run("Nil", func(t *testing.T) {
+		var podGC *PodGC
+		assert.Equal(t, PodGCOnPodNone, podGC.GetStrategy())
+	})
+	t.Run("Unspecified", func(t *testing.T) {
+		var podGC = &PodGC{}
+		assert.Equal(t, PodGCOnPodNone, podGC.GetStrategy())
+	})
+	t.Run("Specified", func(t *testing.T) {
+		var podGC = &PodGC{Strategy: PodGCOnWorkflowSuccess}
+		assert.Equal(t, PodGCOnWorkflowSuccess, podGC.GetStrategy())
+	})
+}
+
+func TestPodGC_GetLabelSelector(t *testing.T) {
+	t.Run("Nil", func(t *testing.T) {
+		var podGC *PodGC
+		selector, err := podGC.GetLabelSelector()
+		assert.NoError(t, err)
+		assert.Equal(t, labels.Nothing(), selector)
+	})
+	t.Run("Unspecified", func(t *testing.T) {
+		var podGC = &PodGC{}
+		selector, err := podGC.GetLabelSelector()
+		assert.NoError(t, err)
+		assert.Equal(t, labels.Everything(), selector)
+	})
+	t.Run("Specified", func(t *testing.T) {
+		labelSelector := &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"foo": "bar",
+			},
+		}
+		var podGC = &PodGC{LabelSelector: labelSelector}
+		selector, err := podGC.GetLabelSelector()
+		assert.NoError(t, err)
+		assert.Equal(t, "foo=bar", selector.String())
+	})
+}
+
 func TestNodes_FindByDisplayName(t *testing.T) {
 	assert.Nil(t, Nodes{}.FindByDisplayName(""))
 	assert.NotNil(t, Nodes{"": NodeStatus{DisplayName: "foo"}}.FindByDisplayName("foo"))
@@ -415,6 +851,16 @@ func TestNodes_Map(t *testing.T) {
 		assert.Equal(t, n["node_1"], "host_1")
 		assert.Equal(t, n["node_2"], "host_2")
 	})
+}
+
+// TestInputs_NoArtifacts makes sure that the code doesn't panic when trying to get artifacts from a node status
+// without any artifacts
+func TestInputs_NoArtifacts(t *testing.T) {
+	s := NodeStatus{ID: "node_1", Inputs: nil, Outputs: nil}
+	inArt := s.Inputs.GetArtifactByName("test-artifact")
+	assert.Nil(t, inArt)
+	outArt := s.Outputs.GetArtifactByName("test-artifact")
+	assert.Nil(t, outArt)
 }
 
 func TestResourcesDuration_String(t *testing.T) {
@@ -518,6 +964,168 @@ func TestPrometheus_GetDescIsStable(t *testing.T) {
 			break
 		}
 	}
+}
+
+func TestWorkflow_SearchArtifacts(t *testing.T) {
+	wf := Workflow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+		},
+		Spec: WorkflowSpec{
+			ArtifactGC: &ArtifactGC{
+				Strategy: ArtifactGCOnWorkflowCompletion,
+			},
+			Templates: []Template{
+				{
+					Name: "template-foo",
+					Outputs: Outputs{
+						Artifacts: Artifacts{
+							Artifact{Name: "artifact-foo"},
+							Artifact{Name: "artifact-bar", ArtifactGC: &ArtifactGC{Strategy: ArtifactGCOnWorkflowDeletion}},
+						},
+					},
+				},
+				{
+					Name: "template-bar",
+					Outputs: Outputs{
+						Artifacts: Artifacts{
+							Artifact{Name: "artifact-foobar"},
+						},
+					},
+				},
+			},
+		},
+		Status: WorkflowStatus{
+			Nodes: Nodes{
+				"test-foo": NodeStatus{
+					ID:           "node-foo",
+					TemplateName: "template-foo",
+					Outputs: &Outputs{
+						Artifacts: Artifacts{
+							Artifact{Name: "artifact-foo"},
+							Artifact{Name: "artifact-bar", ArtifactGC: &ArtifactGC{Strategy: ArtifactGCOnWorkflowDeletion}},
+						},
+					},
+				},
+				"test-bar": NodeStatus{
+					ID:           "node-bar",
+					TemplateName: "template-bar",
+					Outputs: &Outputs{
+						Artifacts: Artifacts{
+							Artifact{Name: "artifact-foobar"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	query := NewArtifactSearchQuery()
+
+	countArtifactName := func(ars ArtifactSearchResults, name string) int {
+		count := 0
+		for _, ar := range ars {
+			if ar.Artifact.Name == name {
+				count++
+			}
+		}
+		return count
+	}
+	countNodeID := func(ars ArtifactSearchResults, nodeID string) int {
+		count := 0
+		for _, ar := range ars {
+			if ar.NodeID == nodeID {
+				count++
+			}
+		}
+		return count
+	}
+
+	// no filters
+	queriedArtifactSearchResults := wf.SearchArtifacts(query)
+	assert.NotNil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 3)
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-foo"))
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-bar"))
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-foobar"))
+	assert.Equal(t, 2, countNodeID(queriedArtifactSearchResults, "node-foo"))
+	assert.Equal(t, 1, countNodeID(queriedArtifactSearchResults, "node-bar"))
+
+	// artifactGC strategy: OnWorkflowCompletion
+	query.ArtifactGCStrategies[ArtifactGCOnWorkflowCompletion] = true
+	queriedArtifactSearchResults = wf.SearchArtifacts(query)
+	assert.NotNil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 2)
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-foo"))
+	assert.Equal(t, 0, countArtifactName(queriedArtifactSearchResults, "artifact-bar"))
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-foobar"))
+	assert.Equal(t, 1, countNodeID(queriedArtifactSearchResults, "node-foo"))
+	assert.Equal(t, 1, countNodeID(queriedArtifactSearchResults, "node-bar"))
+
+	// artifactGC strategy: OnWorkflowDeletion
+	query = NewArtifactSearchQuery()
+	query.ArtifactGCStrategies[ArtifactGCOnWorkflowDeletion] = true
+	queriedArtifactSearchResults = wf.SearchArtifacts(query)
+	assert.NotNil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 1)
+	assert.Equal(t, 0, countArtifactName(queriedArtifactSearchResults, "artifact-foo"))
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-bar"))
+	assert.Equal(t, 0, countArtifactName(queriedArtifactSearchResults, "artifact-foobar"))
+	assert.Equal(t, 1, countNodeID(queriedArtifactSearchResults, "node-foo"))
+	assert.Equal(t, 0, countNodeID(queriedArtifactSearchResults, "node-bar"))
+
+	// template name
+	query = NewArtifactSearchQuery()
+	query.TemplateName = "template-bar"
+	queriedArtifactSearchResults = wf.SearchArtifacts(query)
+	assert.NotNil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 1)
+	assert.Equal(t, "artifact-foobar", queriedArtifactSearchResults[0].Artifact.Name)
+	assert.Equal(t, "node-bar", queriedArtifactSearchResults[0].NodeID)
+
+	// artifact name
+	query = NewArtifactSearchQuery()
+	query.ArtifactName = "artifact-foo"
+	queriedArtifactSearchResults = wf.SearchArtifacts(query)
+	assert.NotNil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 1)
+	assert.Equal(t, "artifact-foo", queriedArtifactSearchResults[0].Artifact.Name)
+	assert.Equal(t, "node-foo", queriedArtifactSearchResults[0].NodeID)
+
+	// node id
+	query = NewArtifactSearchQuery()
+	query.NodeId = "node-foo"
+	queriedArtifactSearchResults = wf.SearchArtifacts(query)
+	assert.NotNil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 2)
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-foo"))
+	assert.Equal(t, 1, countArtifactName(queriedArtifactSearchResults, "artifact-bar"))
+	assert.Equal(t, 2, countNodeID(queriedArtifactSearchResults, "node-foo"))
+
+	// bad query
+	query = NewArtifactSearchQuery()
+	query.NodeId = "node-foobar"
+	queriedArtifactSearchResults = wf.SearchArtifacts(query)
+	assert.Nil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 0)
+
+	// template and artifact name
+	query = NewArtifactSearchQuery()
+	query.TemplateName = "template-foo"
+	query.ArtifactName = "artifact-foo"
+	queriedArtifactSearchResults = wf.SearchArtifacts(query)
+	assert.NotNil(t, queriedArtifactSearchResults)
+	assert.Len(t, queriedArtifactSearchResults, 1)
+	assert.Equal(t, "artifact-foo", queriedArtifactSearchResults[0].Artifact.Name)
+	assert.Equal(t, "node-foo", queriedArtifactSearchResults[0].NodeID)
+}
+
+func TestWorkflowSpec_GetArtifactGC(t *testing.T) {
+	spec := WorkflowSpec{}
+
+	assert.NotNil(t, spec.GetArtifactGC())
+	assert.Equal(t, &ArtifactGC{Strategy: ArtifactGCStrategyUndefined}, spec.GetArtifactGC())
 }
 
 func TestWorkflowSpec_GetVolumeGC(t *testing.T) {
@@ -712,16 +1320,6 @@ func TestTemplate_SaveLogsAsArtifact(t *testing.T) {
 		x := &Template{ArchiveLocation: &ArtifactLocation{ArchiveLogs: pointer.BoolPtr(true)}}
 		assert.True(t, x.SaveLogsAsArtifact())
 	})
-	t.Run("ContainerSet", func(t *testing.T) {
-		t.Run("NoMain", func(t *testing.T) {
-			x := &Template{ArchiveLocation: &ArtifactLocation{ArchiveLogs: pointer.BoolPtr(true)}, ContainerSet: &ContainerSetTemplate{}}
-			assert.False(t, x.SaveLogsAsArtifact())
-		})
-		t.Run("Main", func(t *testing.T) {
-			x := &Template{ArchiveLocation: &ArtifactLocation{ArchiveLogs: pointer.BoolPtr(true)}, ContainerSet: &ContainerSetTemplate{Containers: []ContainerNode{{Container: corev1.Container{Name: "main"}}}}}
-			assert.True(t, x.SaveLogsAsArtifact())
-		})
-	})
 }
 
 func TestTemplate_ExcludeTemplateTypes(t *testing.T) {
@@ -889,4 +1487,135 @@ func TestHasChild(t *testing.T) {
 	assert.True(t, node.HasChild("a"))
 	assert.False(t, node.HasChild("c"))
 	assert.False(t, node.HasChild(""))
+}
+
+func TestParameterGetValue(t *testing.T) {
+	empty := Parameter{}
+	defaultVal := Parameter{Default: AnyStringPtr("Default")}
+	value := Parameter{Value: AnyStringPtr("Test")}
+
+	valueFrom := Parameter{ValueFrom: &ValueFrom{}}
+	assert.False(t, empty.HasValue())
+	assert.Empty(t, empty.GetValue())
+	assert.True(t, defaultVal.HasValue())
+	assert.NotEmpty(t, defaultVal.GetValue())
+	assert.Equal(t, "Default", defaultVal.GetValue())
+	assert.True(t, value.HasValue())
+	assert.NotEmpty(t, value.GetValue())
+	assert.Equal(t, "Test", value.GetValue())
+	assert.True(t, valueFrom.HasValue())
+
+}
+
+func TestTemplateIsLeaf(t *testing.T) {
+	tmpls := []Template{
+		{
+			HTTP: &HTTP{URL: "test.com"},
+		},
+		{
+			ContainerSet: &ContainerSetTemplate{},
+		},
+		{
+			Container: &corev1.Container{},
+		},
+		{
+			Script: &ScriptTemplate{},
+		},
+		{
+			Resource: &ResourceTemplate{},
+		},
+	}
+	for _, tmpl := range tmpls {
+		assert.True(t, tmpl.IsLeaf())
+	}
+	tmpl := Template{
+		DAG: &DAGTemplate{},
+	}
+	assert.False(t, tmpl.IsLeaf())
+	tmpl = Template{
+		Steps: []ParallelSteps{},
+	}
+	assert.False(t, tmpl.IsLeaf())
+
+}
+
+func TestTemplateGetType(t *testing.T) {
+	tmpl := Template{HTTP: &HTTP{}}
+	assert.Equal(t, TemplateTypeHTTP, tmpl.GetType())
+}
+
+func TestWfSpecGetExitHook(t *testing.T) {
+	wfSpec := WorkflowSpec{OnExit: "test"}
+	hooks := wfSpec.GetExitHook(wfSpec.Arguments)
+	assert.Equal(t, "test", hooks.Template)
+	wfSpec = WorkflowSpec{Hooks: LifecycleHooks{"exit": LifecycleHook{Template: "hook"}}}
+	hooks = wfSpec.GetExitHook(wfSpec.Arguments)
+	assert.Equal(t, "hook", hooks.Template)
+}
+
+func TestDagSpecGetExitHook(t *testing.T) {
+	dagTask := DAGTask{Name: "A", OnExit: "test"}
+	hooks := dagTask.GetExitHook(dagTask.Arguments)
+	assert.Equal(t, "test", hooks.Template)
+	dagTask = DAGTask{Name: "A", Hooks: LifecycleHooks{"exit": LifecycleHook{Template: "hook"}}}
+	hooks = dagTask.GetExitHook(dagTask.Arguments)
+	assert.Equal(t, "hook", hooks.Template)
+}
+
+func TestStepSpecGetExitHook(t *testing.T) {
+	step := WorkflowStep{Name: "A", OnExit: "test"}
+	hooks := step.GetExitHook(step.Arguments)
+	assert.Equal(t, "test", hooks.Template)
+	step = WorkflowStep{Name: "A", Hooks: LifecycleHooks{"exit": LifecycleHook{Template: "hook"}}}
+	hooks = step.GetExitHook(step.Arguments)
+	assert.Equal(t, "hook", hooks.Template)
+
+}
+
+func TestTemplate_RetryStrategy(t *testing.T) {
+	tmpl := Template{}
+	strategy, err := tmpl.GetRetryStrategy()
+	assert.Nil(t, err)
+	assert.Equal(t, wait.Backoff{Steps: 1}, strategy)
+}
+
+func TestGetExecSpec(t *testing.T) {
+	wf := Workflow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+		},
+		Spec: WorkflowSpec{
+			Templates: []Template{
+				{Name: "spec-template"},
+			},
+		},
+		Status: WorkflowStatus{
+			StoredWorkflowSpec: &WorkflowSpec{
+				Templates: []Template{
+					{Name: "stored-spec-template"},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, wf.GetExecSpec().Templates[0].Name, "stored-spec-template")
+
+	wf = Workflow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+		},
+		Spec: WorkflowSpec{
+			Templates: []Template{
+				{Name: "spec-template"},
+			},
+		},
+	}
+
+	assert.Equal(t, wf.GetExecSpec().Templates[0].Name, "spec-template")
+
+	wf.Status.StoredWorkflowSpec = nil
+
+	assert.Equal(t, wf.GetExecSpec().Templates[0].Name, "spec-template")
 }

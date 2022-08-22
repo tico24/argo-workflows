@@ -7,6 +7,7 @@ import {WorkflowTemplate} from '../../../../models';
 import {uiUrl} from '../../../shared/base';
 import {ErrorNotice} from '../../../shared/components/error-notice';
 import {Loading} from '../../../shared/components/loading';
+import {useCollectEvent} from '../../../shared/components/use-collect-event';
 import {Context} from '../../../shared/context';
 import {historyUrl} from '../../../shared/history';
 import {services} from '../../../shared/services';
@@ -61,6 +62,8 @@ export const WorkflowTemplateDetails = ({history, location, match}: RouteCompone
             .then(() => setError(null))
             .catch(setError);
     }, [name, namespace]);
+
+    useCollectEvent('openedWorkflowTemplateDetails');
 
     return (
         <Page
@@ -120,15 +123,15 @@ export const WorkflowTemplateDetails = ({history, location, match}: RouteCompone
                 {!template ? <Loading /> : <WorkflowTemplateEditor template={template} onChange={setTemplate} onError={setError} onTabSelected={setTab} selectedTabKey={tab} />}
             </>
             {template && (
-                <SlidingPanel isShown={!!sidePanel} onClose={() => setSidePanel(null)} isNarrow={sidePanel === 'submit'}>
+                <SlidingPanel isShown={!!sidePanel} onClose={() => setSidePanel(null)} isMiddle={sidePanel === 'submit'}>
                     {sidePanel === 'submit' && (
                         <SubmitWorkflowPanel
                             kind='WorkflowTemplate'
                             namespace={namespace}
                             name={name}
                             entrypoint={template.spec.entrypoint}
-                            entrypoints={(template.spec.templates || []).map(t => t.name)}
-                            parameters={template.spec.arguments.parameters || []}
+                            templates={template.spec.templates || []}
+                            workflowParameters={template.spec.arguments.parameters || []}
                         />
                     )}
                     {sidePanel === 'share' && <WidgetGallery namespace={namespace} label={'workflows.argoproj.io/workflow-template=' + name} />}

@@ -5,21 +5,22 @@ pf() {
   set -eu -o pipefail
   resource=$1
   port=$2
-  dest_port=${4:-"$port"}
+  dest_port=${3:-"$port"}
   ./hack/free-port.sh $port
   echo "port-forward $resource $port"
   kubectl -n argo port-forward "svc/$resource" "$port:$dest_port" > /dev/null &
-	until lsof -i ":$port" > /dev/null ; do sleep 1s ; done
+	until lsof -i ":$port" > /dev/null ; do sleep 1 ; done
 }
 
 wait-for() {
   set -eu -o pipefail
   echo "wait-for $1"
-  kubectl -n argo wait --timeout 1m --for=condition=Available deploy/$1
+  kubectl -n argo wait --timeout 2m --for=condition=Available deploy/$1
 }
 
 wait-for minio
 pf minio 9000
+pf minio 9001
 
 dex=$(kubectl -n argo get pod -l app=dex -o name)
 if [[ "$dex" != "" ]]; then
@@ -47,7 +48,7 @@ fi
 if [[ "$(kubectl -n argo get pod -l app=workflow-controller -o name)" != "" ]]; then
   wait-for workflow-controller
   pf workflow-controller-metrics 9090
-  if [[ "$(kubectl -n argo get svc -l app=workflow-controller-pprof -o name)" != "" ]]; then
+  if [[ "$(kubectl -n argo get svc workflow-controller-pprof -o name)" != "" ]]; then
     pf workflow-controller-pprof 6060
   fi
 fi
@@ -55,4 +56,10 @@ fi
 if [[ "$(kubectl -n argo get pod -l app=prometheus -o name)" != "" ]]; then
   wait-for prometheus
   pf prometheus 9091 9090
+fi
+
+azurite=$(kubectl -n argo get pod -l app=azurite -o name)
+if [[ "$azurite" != "" ]]; then
+  wait-for azurite
+  pf azurite 10000
 fi

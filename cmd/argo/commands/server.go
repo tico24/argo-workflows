@@ -3,8 +3,11 @@ package commands
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	eventsource "github.com/argoproj/argo-events/pkg/client/eventsource/clientset/versioned"
@@ -13,7 +16,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"golang.org/x/net/context"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	restclient "k8s.io/client-go/rest"
@@ -27,6 +33,9 @@ import (
 	"github.com/argoproj/argo-workflows/v3/server/types"
 	"github.com/argoproj/argo-workflows/v3/util/cmd"
 	"github.com/argoproj/argo-workflows/v3/util/help"
+	pprofutil "github.com/argoproj/argo-workflows/v3/util/pprof"
+	tlsutils "github.com/argoproj/argo-workflows/v3/util/tls"
+	"github.com/argoproj/argo-workflows/v3/workflow/common"
 )
 
 func NewServerCommand() *cobra.Command {
@@ -36,14 +45,18 @@ func NewServerCommand() *cobra.Command {
 		port                     int
 		baseHRef                 string
 		secure                   bool
+		tlsCertificateSecretName string
 		htst                     bool
 		namespaced               bool   // --namespaced
 		managedNamespace         string // --managed-namespace
 		enableOpenBrowser        bool
 		eventOperationQueueSize  int
 		eventWorkerCount         int
+		eventAsyncDispatch       bool
 		frameOptions             string
 		accessControlAllowOrigin string
+		apiRateLimit             uint64
+		allowedLinkProtocol      []string
 		logFormat                string // --log-format
 	)
 
@@ -51,11 +64,12 @@ func NewServerCommand() *cobra.Command {
 		Use:   "server",
 		Short: "start the Argo Server",
 		Example: fmt.Sprintf(`
-See %s`, help.ArgoSever),
+See %s`, help.ArgoServer),
 		RunE: func(c *cobra.Command, args []string) error {
 			cmd.SetLogFormatter(logFormat)
 			stats.RegisterStackDumper()
 			stats.StartStatsTicker(5 * time.Minute)
+			pprofutil.Init()
 
 			config, err := client.GetConfig().ClientConfig()
 			if err != nil {
@@ -68,10 +82,11 @@ See %s`, help.ArgoSever),
 
 			namespace := client.Namespace()
 			clients := &types.Clients{
-				Workflow:    wfclientset.NewForConfigOrDie(config),
+				Dynamic:     dynamic.NewForConfigOrDie(config),
 				EventSource: eventsource.NewForConfigOrDie(config),
-				Sensor:      sensor.NewForConfigOrDie(config),
 				Kubernetes:  kubernetes.NewForConfigOrDie(config),
+				Sensor:      sensor.NewForConfigOrDie(config),
+				Workflow:    wfclientset.NewForConfigOrDie(config),
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -84,29 +99,42 @@ See %s`, help.ArgoSever),
 				managedNamespace = namespace
 			}
 
+			ssoNamespace := namespace
+			if managedNamespace != "" {
+				ssoNamespace = managedNamespace
+			}
+
 			log.WithFields(log.Fields{
 				"authModes":        authModes,
 				"namespace":        namespace,
 				"managedNamespace": managedNamespace,
+				"ssoNamespace":     ssoNamespace,
 				"baseHRef":         baseHRef,
 				"secure":           secure,
 			}).Info()
 
 			var tlsConfig *tls.Config
 			if secure {
-				cer, err := tls.LoadX509KeyPair("argo-server.crt", "argo-server.key")
-				if err != nil {
-					return err
-				}
 				tlsMinVersion, err := env.GetInt("TLS_MIN_VERSION", tls.VersionTLS12)
 				if err != nil {
 					return err
 				}
-				tlsConfig = &tls.Config{
-					Certificates:       []tls.Certificate{cer},
-					InsecureSkipVerify: true,
-					MinVersion:         uint16(tlsMinVersion),
+
+				if tlsCertificateSecretName != "" {
+					log.Infof("Getting contents of Kubernetes secret %s for TLS Certificates", tlsCertificateSecretName)
+					tlsConfig, err = tlsutils.GetServerTLSConfigFromSecret(ctx, clients.Kubernetes, tlsCertificateSecretName, uint16(tlsMinVersion), namespace)
+					if err != nil {
+						return err
+					}
+					log.Infof("Successfully loaded TLS config from Kubernetes secret %s", tlsCertificateSecretName)
+				} else {
+					log.Infof("Generating Self Signed TLS Certificates for Secure Mode")
+					tlsConfig, err = tlsutils.GenerateX509KeyPairTLSConfig(uint16(tlsMinVersion))
+					if err != nil {
+						return err
+					}
 				}
+
 			} else {
 				log.Warn("You are running in insecure mode. Learn how to enable transport layer security: https://argoproj.github.io/argo-workflows/tls/")
 			}
@@ -126,16 +154,21 @@ See %s`, help.ArgoSever),
 				BaseHRef:                 baseHRef,
 				TLSConfig:                tlsConfig,
 				HSTS:                     htst,
+				Namespaced:               namespaced,
 				Namespace:                namespace,
 				Clients:                  clients,
 				RestConfig:               config,
 				AuthModes:                modes,
 				ManagedNamespace:         managedNamespace,
+				SSONamespace:             ssoNamespace,
 				ConfigName:               configMap,
 				EventOperationQueueSize:  eventOperationQueueSize,
 				EventWorkerCount:         eventWorkerCount,
+				EventAsyncDispatch:       eventAsyncDispatch,
 				XFrameOptions:            frameOptions,
 				AccessControlAllowOrigin: accessControlAllowOrigin,
+				APIRateLimit:             apiRateLimit,
+				AllowedLinkProtocol:      allowedLinkProtocol,
 			}
 			browserOpenFunc := func(url string) {}
 			if enableOpenBrowser {
@@ -153,31 +186,66 @@ See %s`, help.ArgoSever),
 				return err
 			}
 
+			// disabled by default, for security
+			if x, enabled := os.LookupEnv("ARGO_SERVER_PPROF"); enabled {
+				port, err := strconv.Atoi(x)
+				if err != nil {
+					return err
+				}
+				go func() {
+					log.Infof("starting server for pprof on :%d, see https://golang.org/pkg/net/http/pprof/", port)
+					log.Println(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
+				}()
+			}
+
 			server.Run(ctx, port, browserOpenFunc)
 			return nil
 		},
 	}
 
-	command.Flags().IntVarP(&port, "port", "p", 2746, "Port to listen on")
 	defaultBaseHRef := os.Getenv("BASE_HREF")
 	if defaultBaseHRef == "" {
 		defaultBaseHRef = "/"
 	}
+
+	defaultAllowedLinkProtocol := []string{"http", "https"}
+	if protocol := os.Getenv("ALLOWED_LINK_PROTOCOL"); protocol != "" {
+		defaultAllowedLinkProtocol = strings.Split(protocol, ",")
+	}
+
+	command.Flags().IntVarP(&port, "port", "p", 2746, "Port to listen on")
 	command.Flags().StringVar(&baseHRef, "basehref", defaultBaseHRef, "Value for base href in index.html. Used if the server is running behind reverse proxy under subpath different from /. Defaults to the environment variable BASE_HREF.")
 	// "-e" for encrypt, like zip
-	// We default to secure mode if we find certs available, otherwise we default to insecure mode.
-	_, err := os.Stat("argo-server.crt")
-	command.Flags().BoolVarP(&secure, "secure", "e", !os.IsNotExist(err), "Whether or not we should listen on TLS.")
+	command.Flags().BoolVarP(&secure, "secure", "e", true, "Whether or not we should listen on TLS.")
 	command.Flags().BoolVar(&htst, "hsts", true, "Whether or not we should add a HTTP Secure Transport Security header. This only has effect if secure is enabled.")
 	command.Flags().StringArrayVar(&authModes, "auth-mode", []string{"client"}, "API server authentication mode. Any 1 or more length permutation of: client,server,sso")
-	command.Flags().StringVar(&configMap, "configmap", "workflow-controller-configmap", "Name of K8s configmap to retrieve workflow controller configuration")
+	command.Flags().StringVar(&configMap, "configmap", common.ConfigMapName, "Name of K8s configmap to retrieve workflow controller configuration")
 	command.Flags().BoolVar(&namespaced, "namespaced", false, "run as namespaced mode")
 	command.Flags().StringVar(&managedNamespace, "managed-namespace", "", "namespace that watches, default to the installation namespace")
 	command.Flags().BoolVarP(&enableOpenBrowser, "browser", "b", false, "enable automatic launching of the browser [local mode]")
 	command.Flags().IntVar(&eventOperationQueueSize, "event-operation-queue-size", 16, "how many events operations that can be queued at once")
 	command.Flags().IntVar(&eventWorkerCount, "event-worker-count", 4, "how many event workers to run")
+	command.Flags().BoolVar(&eventAsyncDispatch, "event-async-dispatch", false, "dispatch event async")
 	command.Flags().StringVar(&frameOptions, "x-frame-options", "DENY", "Set X-Frame-Options header in HTTP responses.")
 	command.Flags().StringVar(&accessControlAllowOrigin, "access-control-allow-origin", "", "Set Access-Control-Allow-Origin header in HTTP responses.")
+	command.Flags().Uint64Var(&apiRateLimit, "api-rate-limit", 1000, "Set limit per IP for api ratelimiter")
+	command.Flags().StringArrayVar(&allowedLinkProtocol, "allowed-link-protocol", defaultAllowedLinkProtocol, "Allowed link protocol in configMap. Used if the allowed configMap links protocol are different from http,https. Defaults to the environment variable ALLOWED_LINK_PROTOCOL")
 	command.Flags().StringVar(&logFormat, "log-format", "text", "The formatter to use for logs. One of: text|json")
+
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("ARGO")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	if err := viper.BindPFlags(command.Flags()); err != nil {
+		log.Fatal(err)
+	}
+	command.Flags().VisitAll(func(f *pflag.Flag) {
+		if !f.Changed && viper.IsSet(f.Name) {
+			val := viper.Get(f.Name)
+			if err := command.Flags().Set(f.Name, fmt.Sprintf("%v", val)); err != nil {
+				log.Fatal(err)
+			}
+		}
+	})
+
 	return &command
 }

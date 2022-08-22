@@ -33,7 +33,7 @@ spec:
 `
 
 func TestDAGCycle(t *testing.T) {
-	_, err := validate(dagCycle)
+	err := validate(dagCycle)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "cycle")
 	}
@@ -62,7 +62,7 @@ spec:
 `
 
 func TestAnyWithoutExpandingTask(t *testing.T) {
-	_, err := validate(dagAnyWithoutExpandingTask)
+	err := validate(dagAnyWithoutExpandingTask)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "does not contain any items")
 	}
@@ -84,7 +84,7 @@ spec:
 `
 
 func TestDAGUndefinedTemplate(t *testing.T) {
-	_, err := validate(dagUndefinedTemplate)
+	err := validate(dagUndefinedTemplate)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "undefined")
 	}
@@ -140,6 +140,9 @@ spec:
     inputs:
       parameters:
       - name: message
+      - name: startedat
+      - name: finishedat
+      - name: id
     container:
       image: alpine:3.7
       command: [echo, "{{inputs.parameters.message}}"]
@@ -157,6 +160,12 @@ spec:
           parameters:
           - name: message
             value: val
+          - name: startedat
+            value: "test"
+          - name: finishedat
+            value: "test"
+          - name: id
+            value: "1"
       - name: B
         dependencies: [A]
         template: echo
@@ -164,6 +173,12 @@ spec:
           parameters:
           - name: message
             value: "{{tasks.A.outputs.parameters.hosts}}"
+          - name: startedat
+            value: "{{tasks.A.startedAt}}"
+          - name: finishedat
+            value: "{{tasks.A.finishedAt}}"
+          - name: id
+            value: "{{tasks.A.id}}"
       - name: C
         dependencies: [B]
         template: echo
@@ -171,6 +186,12 @@ spec:
           parameters:
           - name: message
             value: "{{tasks.A.outputs.parameters.hosts}}"
+          - name: startedat
+            value: "{{tasks.A.startedAt}}"
+          - name: finishedat
+            value: "{{tasks.A.finishedAt}}"
+          - name: id
+            value: "{{tasks.A.id}}"
 `
 
 var dagResolvedVarNotAncestor = `
@@ -281,21 +302,21 @@ spec:
 `
 
 func TestDAGVariableResolution(t *testing.T) {
-	_, err := validate(dagUnresolvedVar)
+	err := validate(dagUnresolvedVar)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "failed to resolve {{tasks.A.outputs.parameters.unresolvable}}")
 	}
-	_, err = validate(dagResolvedVar)
+	err = validate(dagResolvedVar)
 	assert.NoError(t, err)
 
-	_, err = validate(dagResolvedVarNotAncestor)
+	err = validate(dagResolvedVarNotAncestor)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "templates.unresolved.tasks.C missing dependency 'B' for parameter 'message'")
 	}
 
-	_, err = validate(dagResolvedGlobalVar)
+	err = validate(dagResolvedGlobalVar)
 	assert.NoError(t, err)
-	_, err = validate(dagResolvedGlobalVarReversed)
+	err = validate(dagResolvedGlobalVarReversed)
 	assert.NoError(t, err)
 }
 
@@ -353,7 +374,7 @@ spec:
 `
 
 func TestDAGArtifactResolution(t *testing.T) {
-	_, err := validate(dagResolvedArt)
+	err := validate(dagResolvedArt)
 	assert.NoError(t, err)
 }
 
@@ -587,25 +608,24 @@ spec:
 `
 
 func TestDAGStatusReference(t *testing.T) {
-	_, err := validate(dagStatusReference)
+	err := validate(dagStatusReference)
 	assert.NoError(t, err)
 
-	_, err = validate(dagStatusNoFutureReferenceSimple)
+	err = validate(dagStatusNoFutureReferenceSimple)
 	// Can't reference the status of steps that have not run yet
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "failed to resolve {{tasks.B.status}}")
 	}
-
-	_, err = validate(dagStatusNoFutureReferenceWhenFutureReferenceHasChild)
+	err = validate(dagStatusNoFutureReferenceWhenFutureReferenceHasChild)
 	// Can't reference the status of steps that have not run yet, even if the referenced steps have children
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "failed to resolve {{tasks.B.status}}")
 	}
 
-	_, err = validate(dagStatusPastReferenceChain)
+	err = validate(dagStatusPastReferenceChain)
 	assert.NoError(t, err)
 
-	_, err = validate(dagStatusOnlyDirectAncestors)
+	err = validate(dagStatusOnlyDirectAncestors)
 	// Can't reference steps that are not direct ancestors of node
 	// Here Node E references the status of Node B, even though it is not its descendent
 	if assert.NotNil(t, err) {
@@ -644,7 +664,7 @@ spec:
 `
 
 func TestDAGNonExistantTarget(t *testing.T) {
-	_, err := validate(dagNonexistantTarget)
+	err := validate(dagNonexistantTarget)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "target 'DOESNTEXIST' is not defined")
 	}
@@ -685,7 +705,7 @@ spec:
 `
 
 func TestDAGTargetSubstitution(t *testing.T) {
-	_, err := validate(dagTargetSubstitution)
+	err := validate(dagTargetSubstitution)
 	assert.NoError(t, err)
 }
 
@@ -719,7 +739,7 @@ spec:
 `
 
 func TestDAGTargetMissingInputParam(t *testing.T) {
-	_, err := validate(dagTargetMissingInputParam)
+	err := validate(dagTargetMissingInputParam)
 	assert.NotNil(t, err)
 }
 
@@ -750,7 +770,7 @@ spec:
 `
 
 func TestDependsAndDependencies(t *testing.T) {
-	_, err := validate(dagDependsAndDependencies)
+	err := validate(dagDependsAndDependencies)
 	assert.Error(t, err, "templates.dag-target cannot use both 'depends' and 'dependencies' in the same DAG template")
 }
 
@@ -782,7 +802,7 @@ spec:
 `
 
 func TestDependsAndContinueOn(t *testing.T) {
-	_, err := validate(dagDependsAndContinueOn)
+	err := validate(dagDependsAndContinueOn)
 	assert.Error(t, err, "templates.dag-target cannot use 'continueOn' when using 'depends'. Instead use 'dep-task.Failed'/'dep-task.Errored'")
 }
 
@@ -834,7 +854,7 @@ spec:
 `
 
 func TestDAGDependsDigit(t *testing.T) {
-	_, err := validate(dagDependsDigit)
+	err := validate(dagDependsDigit)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "templates.diamond.tasks.5A name cannot begin with a digit when using either 'depends' or 'dependencies'")
 	}
@@ -888,8 +908,166 @@ spec:
 `
 
 func TestDAGDependenciesDigit(t *testing.T) {
-	_, err := validate(dagDependenciesDigit)
+	err := validate(dagDependenciesDigit)
 	if assert.NotNil(t, err) {
 		assert.Contains(t, err.Error(), "templates.diamond.tasks.5A name cannot begin with a digit when using either 'depends' or 'dependencies'")
+	}
+}
+
+var dagWithDigitNoDepends = `
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: dag-diamond-
+spec:
+  entrypoint: diamond
+  templates:
+    - name: diamond
+      dag:
+        tasks:
+          - name: 5A
+            template: pass
+          - name: B
+            template: pass
+    - name: pass
+      container:
+        image: alpine:3.7
+        command:
+          - sh
+          - -c
+          - exit 0
+`
+
+func TestDAGWithDigitNameNoDepends(t *testing.T) {
+	err := validate(dagWithDigitNoDepends)
+	assert.NoError(t, err)
+}
+
+var dagOutputsResolveTaskAggregatedOutputs = `
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: loops-
+spec:
+  serviceAccountName: argo
+  entrypoint: dag
+  templates:
+  - name: dag
+    dag:
+      tasks:
+      - name: fanout
+        template: fanout
+        arguments:
+          parameters:
+          - name: input
+            value: "[1, 2]"
+      - name: dag-process
+        template: sub-dag
+        depends: fanout
+        arguments:
+          parameters:
+          - name: item
+            value: '{{item}}'
+          - name: input
+            value: '{{tasks.fanout.outputs.parameters.output}}'
+        withParam: "{{tasks.fanout.outputs.parameters.output}}"
+
+  - name: sub-dag
+    inputs:
+      parameters:
+      - name: input
+      - name: item
+    outputs:
+      parameters:
+      - name: output
+        valueFrom:
+          parameter: "{{tasks.process.outputs.parameters}}"
+    dag:
+      tasks:
+      - name: fanout
+        template: fanout
+        arguments:
+          parameters:
+          - name: input
+            value: '{{inputs.parameters.input}}'
+      - name: process
+        template: process
+        depends: fanout
+        arguments:
+          parameters:
+          - name: item
+            value: '{{item}}'
+        withParam: "{{tasks.fanout.outputs.parameters.output}}"
+
+  - name: fanout
+    inputs:
+      parameters:
+      - name: input
+    container:
+      image: docker/whalesay:latest
+      command: [sh, -c]
+      args: ["echo {{inputs.parameters.input}} | tee /tmp/output"]
+    outputs:
+      parameters:
+      - name: output
+        valueFrom:
+          path: /tmp/output
+
+  - name: process
+    inputs:
+      parameters:
+      - name: item
+    container:
+      image: docker/whalesay:latest
+      command: [sh, -c]
+      args: ["echo {{inputs.parameters.item}} | tee /tmp/output"]
+    outputs:
+      parameters:
+      - name: output
+        valueFrom:
+          path: /tmp/output
+`
+
+func TestDAGOutputsResolveTaskAggregatedOutputs(t *testing.T) {
+	err := validate(dagOutputsResolveTaskAggregatedOutputs)
+	assert.NoError(t, err)
+}
+
+var dagMissingParamValueInTask = `
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  entrypoint: root
+  templates:
+    - name: template
+      inputs:
+        parameters:
+          - name: data
+      container:
+        name: main
+        image: alpine
+    - name: root
+      inputs:
+        parameters:
+          - name: anything_param
+      dag:
+        tasks:
+          - name: task
+            template: template
+            arguments:
+              parameters:
+                - name: data
+                  valueFrom:
+                    parameter: "{{inputs.parameters.anything_param}}"
+  arguments:
+    parameters:
+      - name: anything_param
+        value: anything_param
+`
+
+func TestDAGMissingParamValueInTask(t *testing.T) {
+	err := validate(dagMissingParamValueInTask)
+	if assert.NotNil(t, err) {
+		assert.Contains(t, err.Error(), "templates.root.tasks.task missing value for parameter 'data'")
 	}
 }

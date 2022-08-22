@@ -46,16 +46,23 @@ type archivedWorkflowLabelRecord struct {
 	Value string `db:"value"`
 }
 
-//go:generate mockery -name WorkflowArchive
+type archivedWorkflowCount struct {
+	Total uint64 `db:"total,omitempty" json:"total"`
+}
+
+//go:generate mockery --name=WorkflowArchive
 
 type WorkflowArchive interface {
 	ArchiveWorkflow(wf *wfv1.Workflow) error
 	// list workflows, with the most recently started workflows at the beginning (i.e. index 0 is the most recent)
-	ListWorkflows(namespace string, minStartAt, maxStartAt time.Time, labelRequirements labels.Requirements, limit, offset int) (wfv1.Workflows, error)
+	ListWorkflows(namespace string, name string, namePrefix string, minStartAt, maxStartAt time.Time, labelRequirements labels.Requirements, limit, offset int) (wfv1.Workflows, error)
+	CountWorkflows(namespace string, name string, namePrefix string, minStartAt, maxStartAt time.Time, labelRequirements labels.Requirements) (int64, error)
 	GetWorkflow(uid string) (*wfv1.Workflow, error)
 	DeleteWorkflow(uid string) error
 	DeleteExpiredWorkflows(ttl time.Duration) error
 	IsEnabled() bool
+	ListWorkflowsLabelKeys() (*wfv1.LabelKeys, error)
+	ListWorkflowsLabelValues(key string) (*wfv1.LabelValues, error)
 }
 
 type workflowArchive struct {
@@ -134,7 +141,7 @@ func (r *workflowArchive) ArchiveWorkflow(wf *wfv1.Workflow) error {
 	})
 }
 
-func (r *workflowArchive) ListWorkflows(namespace string, minStartedAt, maxStartedAt time.Time, labelRequirements labels.Requirements, limit int, offset int) (wfv1.Workflows, error) {
+func (r *workflowArchive) ListWorkflows(namespace string, name string, namePrefix string, minStartedAt, maxStartedAt time.Time, labelRequirements labels.Requirements, limit int, offset int) (wfv1.Workflows, error) {
 	var archivedWfs []archivedWorkflowMetadata
 	clause, err := labelsClause(r.dbType, labelRequirements)
 	if err != nil {
@@ -153,6 +160,8 @@ func (r *workflowArchive) ListWorkflows(namespace string, minStartedAt, maxStart
 		From(archiveTableName).
 		Where(r.clusterManagedNamespaceAndInstanceID()).
 		And(namespaceEqual(namespace)).
+		And(nameEqual(name)).
+		And(namePrefixClause(namePrefix)).
 		And(startedAtClause(minStartedAt, maxStartedAt)).
 		And(clause).
 		OrderBy("-startedat").
@@ -181,6 +190,30 @@ func (r *workflowArchive) ListWorkflows(namespace string, minStartedAt, maxStart
 	return wfs, nil
 }
 
+func (r *workflowArchive) CountWorkflows(namespace string, name string, namePrefix string, minStartedAt, maxStartedAt time.Time, labelRequirements labels.Requirements) (int64, error) {
+	total := &archivedWorkflowCount{}
+	clause, err := labelsClause(r.dbType, labelRequirements)
+	if err != nil {
+		return 0, err
+	}
+
+	err = r.session.
+		Select(db.Raw("count(*) as total")).
+		From(archiveTableName).
+		Where(r.clusterManagedNamespaceAndInstanceID()).
+		And(namespaceEqual(namespace)).
+		And(nameEqual(name)).
+		And(namePrefixClause(namePrefix)).
+		And(startedAtClause(minStartedAt, maxStartedAt)).
+		And(clause).
+		One(total)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(total.Total), nil
+}
+
 func (r *workflowArchive) clusterManagedNamespaceAndInstanceID() db.Compound {
 	return db.And(
 		db.Cond{"clustername": r.clusterName},
@@ -205,6 +238,22 @@ func namespaceEqual(namespace string) db.Cond {
 		return db.Cond{}
 	} else {
 		return db.Cond{"namespace": namespace}
+	}
+}
+
+func nameEqual(name string) db.Cond {
+	if name == "" {
+		return db.Cond{}
+	} else {
+		return db.Cond{"name": name}
+	}
+}
+
+func namePrefixClause(namePrefix string) db.Cond {
+	if namePrefix == "" {
+		return db.Cond{}
+	} else {
+		return db.Cond{"name LIKE ": namePrefix + "%"}
 	}
 }
 

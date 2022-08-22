@@ -5,10 +5,6 @@ import (
 	"syscall"
 )
 
-func GetOsSignal() os.Signal {
-	return syscall.SIGINT
-}
-
 func IsSIGCHLD(s os.Signal) bool {
 	return false // this does not exist on windows
 }
@@ -26,4 +22,9 @@ func Kill(pid int, s syscall.Signal) error {
 
 func Setpgid(a *syscall.SysProcAttr) {
 	// this does not exist on windows
+}
+
+func Wait(process *os.Process) error {
+	_, err := process.Wait()
+	return err
 }

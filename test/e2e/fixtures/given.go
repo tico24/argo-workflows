@@ -3,10 +3,11 @@ package fixtures
 import (
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/TwinProduction/go-color"
+	"github.com/TwiN/go-color"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -31,6 +32,7 @@ type Given struct {
 	cwfTemplates      []*wfv1.ClusterWorkflowTemplate
 	cronWf            *wfv1.CronWorkflow
 	kubeClient        kubernetes.Interface
+	bearerToken       string
 }
 
 // creates a workflow based on the parameter, this may be:
@@ -41,9 +43,6 @@ func (g *Given) Workflow(text string) *Given {
 	g.t.Helper()
 	g.wf = &wfv1.Workflow{}
 	g.readResource(text, g.wf)
-	if g.wf.Name != "" {
-		g.t.Fatalf("workflow %q, but should use generate name", text)
-	}
 	g.checkImages(g.wf.Spec.Templates)
 	return g
 }
@@ -70,7 +69,7 @@ func (g *Given) readResource(text string, v metav1.Object) {
 	}
 
 	{
-		file, err := ioutil.ReadFile(file)
+		file, err := ioutil.ReadFile(filepath.Clean(file))
 		if err != nil {
 			g.t.Fatal(err)
 		}
@@ -202,5 +201,6 @@ func (g *Given) When() *When {
 		cronClient:        g.cronClient,
 		hydrator:          g.hydrator,
 		kubeClient:        g.kubeClient,
+		bearerToken:       g.bearerToken,
 	}
 }

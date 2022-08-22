@@ -1,9 +1,11 @@
-import {Observable} from 'rxjs';
 import * as models from '../../models';
 import {NODE_PHASE} from '../../models';
+import {Pagination} from './pagination';
 
 const managedNamespaceKey = 'managedNamespace';
+const userNamespaceKey = 'userNamespace';
 const currentNamespaceKey = 'current_namespace';
+
 export const Utils = {
     statusIconClasses(status: string): string {
         let classes = [];
@@ -32,22 +34,6 @@ export const Utils = {
         return node.displayName || node.name;
     },
 
-    toObservable<T>(val: T | Observable<T> | Promise<T>): Observable<T> {
-        const observable = val as Observable<T>;
-        if (observable && observable.subscribe && observable.catch) {
-            return observable as Observable<T>;
-        }
-        return Observable.from([val as T]);
-    },
-
-    tryJsonParse(input: string) {
-        try {
-            return (input && JSON.parse(input)) || null;
-        } catch {
-            return null;
-        }
-    },
-
     isWorkflowSuspended(wf: models.Workflow): boolean {
         if (!wf || !wf.spec) {
             return false;
@@ -72,6 +58,18 @@ export const Utils = {
         return wf.status.phase === 'Running';
     },
 
+    set userNamespace(value: string) {
+        if (value) {
+            localStorage.setItem(userNamespaceKey, value);
+        } else {
+            localStorage.removeItem(userNamespaceKey);
+        }
+    },
+
+    get userNamespace() {
+        return this.fixLocalStorageString(localStorage.getItem(userNamespaceKey));
+    },
+
     set managedNamespace(value: string) {
         if (value) {
             localStorage.setItem(managedNamespaceKey, value);
@@ -81,7 +79,14 @@ export const Utils = {
     },
 
     get managedNamespace() {
-        return localStorage.getItem(managedNamespaceKey);
+        return this.fixLocalStorageString(localStorage.getItem(managedNamespaceKey));
+    },
+
+    fixLocalStorageString(x: string): string {
+        // empty string is valid, so we cannot use `truthy`
+        if (x !== null && x !== 'null' && x !== 'undefined') {
+            return x;
+        }
     },
 
     onNamespaceChange(value: string) {
@@ -99,7 +104,11 @@ export const Utils = {
 
     get currentNamespace() {
         // we always prefer the managed namespace
-        return this.managedNamespace || localStorage.getItem(currentNamespaceKey);
+        if (localStorage.getItem(currentNamespaceKey) === null) {
+            return this.userNamespace || this.managedNamespace;
+        } else {
+            return this.fixLocalStorageString(localStorage.getItem(currentNamespaceKey));
+        }
     },
 
     // return a namespace, favoring managed namespace when set
@@ -109,6 +118,77 @@ export const Utils = {
 
     // return a namespace, never return null/undefined, defaults to "default"
     getNamespaceWithDefault(namespace: string) {
-        return this.managedNamespace || namespace || this.currentNamespace || 'default';
+        return namespace || this.currentNamespace || this.userNamespace || this.managedNamespace || 'default';
+    },
+
+    queryParams(filter: {
+        namespace?: string;
+        name?: string;
+        namePrefix?: string;
+        phases?: Array<string>;
+        labels?: Array<string>;
+        minStartedAt?: Date;
+        maxStartedAt?: Date;
+        pagination?: Pagination;
+        resourceVersion?: string;
+    }) {
+        const queryParams: string[] = [];
+        const fieldSelector = this.fieldSelectorParams(filter.namespace, filter.name, filter.minStartedAt, filter.maxStartedAt);
+        if (fieldSelector.length > 0) {
+            queryParams.push(`listOptions.fieldSelector=${fieldSelector}`);
+        }
+        const labelSelector = this.labelSelectorParams(filter.phases, filter.labels);
+        if (labelSelector.length > 0) {
+            queryParams.push(`listOptions.labelSelector=${labelSelector}`);
+        }
+        if (filter.pagination) {
+            if (filter.pagination.offset) {
+                queryParams.push(`listOptions.continue=${filter.pagination.offset}`);
+            }
+            if (filter.pagination.limit) {
+                queryParams.push(`listOptions.limit=${filter.pagination.limit}`);
+            }
+        }
+        if (filter.namePrefix) {
+            queryParams.push(`namePrefix=${filter.namePrefix}`);
+        }
+        if (filter.resourceVersion) {
+            queryParams.push(`listOptions.resourceVersion=${filter.resourceVersion}`);
+        }
+        return queryParams;
+    },
+
+    fieldSelectorParams(namespace?: string, name?: string, minStartedAt?: Date, maxStartedAt?: Date) {
+        let fieldSelector = '';
+        if (namespace) {
+            fieldSelector += 'metadata.namespace=' + namespace + ',';
+        }
+        if (name) {
+            fieldSelector += 'metadata.name=' + name + ',';
+        }
+        if (minStartedAt) {
+            fieldSelector += 'spec.startedAt>' + minStartedAt.toISOString() + ',';
+        }
+        if (maxStartedAt) {
+            fieldSelector += 'spec.startedAt<' + maxStartedAt.toISOString() + ',';
+        }
+        if (fieldSelector.endsWith(',')) {
+            fieldSelector = fieldSelector.substr(0, fieldSelector.length - 1);
+        }
+        return fieldSelector;
+    },
+
+    labelSelectorParams(phases?: Array<string>, labels?: Array<string>) {
+        let labelSelector = '';
+        if (phases && phases.length > 0) {
+            labelSelector = `workflows.argoproj.io/phase in (${phases.join(',')})`;
+        }
+        if (labels && labels.length > 0) {
+            if (labelSelector.length > 0) {
+                labelSelector += ',';
+            }
+            labelSelector += labels.join(',');
+        }
+        return labelSelector;
     }
 };

@@ -1,3 +1,4 @@
+//go:build api
 // +build api
 
 package e2e
@@ -29,7 +30,7 @@ func (s *MetricsSuite) e(t *testing.T) *httpexpect.Expect {
 			BaseURL:  baseUrlMetrics,
 			Reporter: httpexpect.NewRequireReporter(t),
 			Printers: []httpexpect.Printer{
-				httpexpect.NewDebugPrinter(&httpLogger{}, true),
+				httpexpect.NewDebugPrinter(s.T(), true),
 			},
 			Client: httpClient,
 		})
