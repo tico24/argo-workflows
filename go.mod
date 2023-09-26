@@ -14,7 +14,7 @@ require (
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/antonmedv/expr v1.15.3
 	github.com/argoproj/argo-events v1.7.3
-	github.com/argoproj/pkg v0.13.7-0.20230901113346-235a5432ec98
+	github.com/argoproj/pkg v0.13.7-0.20230925114727-f19efc87ccdb
 	github.com/blushft/go-diagrams v0.0.0-20201006005127-c78c821223d9
 	github.com/colinmarc/hdfs/v2 v2.4.0
 	github.com/coreos/go-oidc/v3 v3.5.0
@@ -129,7 +129,7 @@ require (
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/awalterschulze/gographviz v0.0.0-20200901124122-0eecad45bd71 // indirect
-	github.com/aws/aws-sdk-go v1.45.1 // indirect
+	github.com/aws/aws-sdk-go v1.45.15 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.16.7 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.15.14 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.9 // indirect
@@ -256,7 +256,7 @@ require (
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
-	golang.org/x/net v0.14.0 // indirect
+	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/term v0.12.0
 	golang.org/x/text v0.13.0 // indirect
