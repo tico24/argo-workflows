@@ -1,15 +1,17 @@
 owners:
-- alexec
+- joibel
 - sarabala1979
 - terrytangyuan
-
-reviewers:
-- isubasinghe
-- tczhao
 
 approvers:
 - alexec
 - alexmt
 - edlee2121
+- isubasinghe
 - jessesuen
 - juliev0
+- tczhao
+
+reviewers:
+- jswxstw
+- shuangkun

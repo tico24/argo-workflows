@@ -3,7 +3,7 @@ kind: Kustomization
 
 resources:
   - ../base
+  - ../../base/crds/minimal
 
-patchesStrategicMerge:
-  - overlays/workflow-controller-configmap.yaml
-
+patches:
+  - path: overlays/workflow-controller-configmap.yaml

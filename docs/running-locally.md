@@ -2,24 +2,20 @@
 
 You have two options:
 
-1. If you're using VSCode, you use the [Dev-Container](#development-container). This takes about 7 minutes. This can also be used from the dev-container CLI.
+1. Use the [Dev Container](#development-container). This takes about 7 minutes. This can be used with VSCode, the `devcontainer` CLI, or GitHub Codespaces.
 1. Install the [requirements](#requirements) on your computer manually. This takes about 1 hour.
-
-## Git Clone
-
-Clone the Git repo into: `$GOPATH/src/github.com/argoproj/argo-workflows`. Any other path will mean the code
-generation does not work.
 
 ## Development Container
 
-A development container is a running Docker container with a well-defined tool/runtime stack and its prerequisites. It should be able to do everything you need to do to develop argo workflows using the development container without installing tools on your local machine. It takes quite a long time to build the container. It will run k3d inside the container so you'll have a cluster to use to test against.
+The development container should be able to do everything you need to do to develop Argo Workflows without installing tools on your local machine. It takes quite a long time to build the container. It runs `k3d` inside the container so you have a cluster to test against. To communicate with services running either in other development containers or directly on the local machine (e.g. a database), the following URL can be used in the workflow spec: `host.docker.internal:<PORT>`. This facilitates the implementation of workflows which need to connect to a database or an API server.
 
 You can use the development container in a few different ways:
 
-1. [Visual studio code](https://code.visualstudio.com/) with [The Visual Studio Code Remote - Containers](https://code.visualstudio.com/docs/remote/containers) extension lets you use a Docker container as a full-featured development environment. Open the clone of argo-workflows folder in VS code and it should offer to use the development container automatically. System requirements can be found [here](https://code.visualstudio.com/docs/remote/containers#_system-requirements). Visual Studio will allow you to forward ports to allow your external browser to access the running components.
-1. [Dev-container CLI](https://code.visualstudio.com/). Install the tool and from the argo-workflow folder do `devcontainer up --workspace-folder .` followed by `devcontainer exec --workspace-folder . /bin/bash` to get a shell where you can start building the code. You can use your choice editor outside the docker image to edit code, the changes are mirrored inside the container. Due to a limitation in the CLI only port 8080 (the Web UI) will get exposed for you to access if you run this way. Other services are usable from the shell inside.
+1. [Visual Studio Code](https://code.visualstudio.com/) with [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers). Open your `argo-workflows` folder in VSCode and it should offer to use the development container automatically. VSCode will allow you to forward ports to allow your external browser to access the running components.
+1. [`devcontainer` CLI](https://github.com/devcontainers/cli). Once installed, go to your `argo-workflows` folder and run `devcontainer up --workspace-folder .` followed by `devcontainer exec --workspace-folder . /bin/bash` to get a shell where you can build the code. You can use any editor outside the container to edit code; any changes will be mirrored inside the container. Due to a limitation of the CLI, only port 8080 (the Web UI) will be exposed for you to access if you run this way. Other services are usable from the shell inside.
+1. [GitHub Codespaces](https://github.com/codespaces). You can start editing as soon as VSCode is open, though you may want to wait for `pre-build.sh` to finish installing dependencies, building binaries, and setting up the cluster before running any commands in the terminal. Once you start running services (see next steps below), you can click on the "PORTS" tab in the VSCode terminal to see all forwarded ports. You can open the Web UI in a new tab from there.
 
-`Github Codespaces` is known not to work at this time.
+Once you have entered the container, continue to [Developing Locally](#developing-locally).
 
 Note:
 
@@ -41,7 +37,19 @@ Note:
 
 ## Requirements
 
-To build on your own machine without using the dev-container you will need
+Clone the Git repo into: `$GOPATH/src/github.com/argoproj/argo-workflows`. Any other path will break the code generation.
+
+Add the following to your `/etc/hosts`:
+
+```text
+127.0.0.1 dex
+127.0.0.1 minio
+127.0.0.1 postgres
+127.0.0.1 mysql
+127.0.0.1 azurite
+```
+
+To build on your own machine without using the Dev Container you will need:
 
 * [Go](https://golang.org/dl/)
 * [Yarn](https://classic.yarnpkg.com/en/docs/install/#mac-stable)
@@ -61,25 +69,15 @@ Alternatively, you can use [Minikube](https://github.com/kubernetes/minikube) to
 Once a local Kubernetes cluster has started via `minikube start`, your kube config will use Minikube's context
 automatically.
 
-⚠️ Do not use Docker for Desktop with its embedded Kubernetes, it does not support Kubernetes RBAC (i.e. `kubectl auth can-i` always
-returns `allowed`).
+!!! Warning
+    Do not use Docker Desktop's embedded Kubernetes, it does not support Kubernetes RBAC (i.e. `kubectl auth can-i` always returns `allowed`).
 
 ## Developing locally
-
-Add the following to your `/etc/hosts`:
-
-```text
-127.0.0.1 dex
-127.0.0.1 minio
-127.0.0.1 postgres
-127.0.0.1 mysql
-127.0.0.1 azurite
-```
 
 To start:
 
 * The controller, so you can run workflows.
-* MinIO (<http://localhost:9000>, use admin/password) so you can use artifacts:
+* MinIO (<http://localhost:9000>, use admin/password) so you can use artifacts.
 
 Run:
 
@@ -102,6 +100,17 @@ If you made changes to the executor, you need to build the image:
 ```bash
 make argoexec-image
 ```
+
+You can use the `TARGET_PLATFORM` environment variable to compile images for specific platforms:
+
+```bash
+# compile for both arm64 and amd64
+make argoexec-image TARGET_PLATFORM=linux/arm64,linux/amd64
+```
+
+!!! Note "Error `expected 'package', found signal_darwin`"
+    You may see this error if symlinks are not configured for your `git` installation.
+    Run `git config core.symlinks true` to correct this.
 
 To also start the API on <http://localhost:2746>:
 
@@ -139,10 +148,39 @@ You'll have, either:
 * Postgres on <http://localhost:5432>, run `make postgres-cli` to access.
 * MySQL on <http://localhost:3306>, run `make mysql-cli` to access.
 
+To back up the database, use `make postgres-dump` or `make mysql-dump`, which will generate a SQL dump in the `db-dumps/` directory.
+
+```console
+make postgres-dump
+```
+
+To restore the backup, use `make postgres-cli` or `make mysql-cli`, piping in the file from the `db-dumps/` directory.
+
+Note that this is destructive and will delete any data you have stored.
+
+```console
+make postgres-cli < db-dumps/2024-10-16T17:11:58Z.sql
+```
+
 To test SSO integration, use `PROFILE=sso`:
 
 ```bash
 make start UI=true PROFILE=sso
+```
+
+### TLS
+
+By default, `make start` will start Argo in [plain text mode](tls.md#plain-text).
+To simulate a TLS proxy in front of Argo, use `UI_SECURE=true` (which implies `UI=true`):
+
+```bash
+make start UI_SECURE=true
+```
+
+To start Argo in [encrypted mode](tls.md#encrypted), use `SECURE=true`, which can be optionally combined with `UI_SECURE=true`:
+
+```bash
+make start SECURE=true UI_SECURE=true
 ```
 
 ### Running E2E tests locally
@@ -197,6 +235,36 @@ Tests often fail: that's good. To diagnose failure:
 
 If tests run slowly or time out, factory reset your Kubernetes cluster.
 
+### Database Tooling
+
+The `go run ./hack/db` CLI provides a few useful commands for working with the DB locally:
+
+```console
+$ go run ./hack/db
+CLI for developers to use when working on the DB locally
+
+Usage:
+  db [command]
+
+Available Commands:
+  completion              Generate the autocompletion script for the specified shell
+  fake-archived-workflows Insert randomly-generated workflows into argo_archived_workflows, for testing purposes
+  help                    Help about any command
+  migrate                 Force DB migration for given cluster/table
+
+Flags:
+  -c, --dsn string   DSN connection string. For MySQL, use 'mysql:password@tcp/argo'. (default "postgres://postgres@localhost:5432/postgres")
+  -h, --help         help for db
+
+Use "db [command] --help" for more information about a command.
+```
+
+### Debugging using Visual Studio Code
+
+When using the Dev Container with VSCode, use the `Attach to argo server` and/or `Attach to workflow controller` launch configurations to attach to the `argo` or `workflow-controller` processes, respectively.
+
+This will allow you to start a debug session, where you can inspect variables and set breakpoints.
+
 ## Committing
 
 Before you commit code and raise a PR, always run:
@@ -207,7 +275,7 @@ make pre-commit -B
 
 Please do the following when creating your PR:
 
-* Sign-off your commits.
+* [Sign-off](https://probot.github.io/apps/dco) your commits.
 * Use [Conventional Commit messages](https://www.conventionalcommits.org/en/v1.0.0/).
 * Suffix the issue number.
 
@@ -228,15 +296,11 @@ git commit --signoff -m 'feat: Added a new feature. Fixes #1234'
   have checked out your code into `$GOPATH/src/github.com/argoproj/argo-workflows`.
 * If you encounter "out of heap" issues when building UI through Docker, please validate resources allocated to Docker.
   Compilation may fail if allocated RAM is less than 4Gi.
-
-## Using Multiple Terminals
-
-I run the controller in one terminal, and the UI in another. I like the UI: it is much faster to debug workflows than
-the terminal. This allows you to make changes to the controller and re-start it, without restarting the UI (which I
-think takes too long to start-up).
-
-As a convenience, `CTRL=false` implies `UI=true`, so just run:
+* To start profiling with [`pprof`](https://go.dev/blog/pprof), pass `ARGO_PPROF=true` when starting the controller locally.
+  Then run the following:
 
 ```bash
-make start CTRL=false
+go tool pprof http://localhost:6060/debug/pprof/profile   # 30-second CPU profile
+go tool pprof http://localhost:6060/debug/pprof/heap      # heap profile
+go tool pprof http://localhost:6060/debug/pprof/block     # goroutine blocking profile
 ```

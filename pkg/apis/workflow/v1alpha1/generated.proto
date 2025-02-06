@@ -275,6 +275,9 @@ message ArtifactoryArtifactRepository {
 
   // RepoURL is the url for artifactory repo.
   optional string repoURL = 2;
+
+  // KeyFormat defines the format of how to store keys and can reference workflow variables.
+  optional string keyFormat = 3;
 }
 
 // ArtifactoryAuth describes the secret selectors required for authenticating to artifactory
@@ -325,8 +328,16 @@ message Backoff {
   // Factor is a factor to multiply the base duration after each failed retry
   optional k8s.io.apimachinery.pkg.util.intstr.IntOrString factor = 2;
 
-  // MaxDuration is the maximum amount of time allowed for a workflow in the backoff strategy
+  // MaxDuration is the maximum amount of time allowed for a workflow in the backoff strategy.
+  // It is important to note that if the workflow template includes activeDeadlineSeconds, the pod's deadline is initially set with activeDeadlineSeconds.
+  // However, when the workflow fails, the pod's deadline is then overridden by maxDuration.
+  // This ensures that the workflow does not exceed the specified maximum duration when retries are involved.
   optional string maxDuration = 3;
+
+  // Cap is a limit on revised values of the duration parameter. If a
+  // multiplication by the factor parameter would make the duration
+  // exceed the cap then the duration is set to the cap
+  optional string cap = 4;
 }
 
 // BasicAuth describes the secret selectors required for basic authentication
@@ -402,12 +413,14 @@ message ContainerNode {
   repeated string dependencies = 2;
 }
 
+// ContainerSetRetryStrategy provides controls on how to retry a container set
 message ContainerSetRetryStrategy {
   // Duration is the time between each retry, examples values are "300ms", "1s" or "5m".
   // Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
   optional string duration = 1;
 
-  // Nbr of retries
+  // Retries is the maximum number of retry attempts for each container. It does not include the
+  // first, original attempt; the maximum number of total attempts will be `retries + 1`.
   optional k8s.io.apimachinery.pkg.util.intstr.IntOrString retries = 2;
 }
 
@@ -416,8 +429,8 @@ message ContainerSetTemplate {
 
   repeated k8s.io.api.core.v1.VolumeMount volumeMounts = 3;
 
-  // RetryStrategy describes how to retry a container nodes in the container set if it fails.
-  // Nbr of retries(default 0) and sleep duration between retries(default 0s, instant retry) can be set.
+  // RetryStrategy describes how to retry container nodes if the container set fails.
+  // Note that this works differently from the template-level `retryStrategy` as it is a process-level retry that does not create new Pods or containers.
   optional ContainerSetRetryStrategy retryStrategy = 5;
 }
 
@@ -469,7 +482,7 @@ message CronWorkflowSpec {
   // WorkflowSpec is the spec of the workflow to be run
   optional WorkflowSpec workflowSpec = 1;
 
-  // Schedule is a schedule to run the Workflow in Cron format
+  // Schedule is a schedule to run the Workflow in Cron format. Deprecated, use Schedules
   optional string schedule = 2;
 
   // ConcurrencyPolicy is the K8s-style concurrency policy that will be used
@@ -493,18 +506,42 @@ message CronWorkflowSpec {
 
   // WorkflowMetadata contains some metadata of the workflow to be run
   optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta workflowMeta = 9;
+
+  // v3.6 and after: StopStrategy defines if the CronWorkflow should stop scheduling based on a condition
+  optional StopStrategy stopStrategy = 10;
+
+  // v3.6 and after: Schedules is a list of schedules to run the Workflow in Cron format
+  repeated string schedules = 11;
+
+  // v3.6 and after: When is an expression that determines if a run should be scheduled.
+  optional string when = 12;
 }
 
 // CronWorkflowStatus is the status of a CronWorkflow
 message CronWorkflowStatus {
   // Active is a list of active workflows stemming from this CronWorkflow
+  // +optional
   repeated k8s.io.api.core.v1.ObjectReference active = 1;
 
   // LastScheduleTime is the last time the CronWorkflow was scheduled
+  // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastScheduledTime = 2;
 
   // Conditions is a list of conditions the CronWorkflow may have
+  // +optional
   repeated Condition conditions = 3;
+
+  // v3.6 and after: Succeeded counts how many times child workflows succeeded
+  // +optional
+  optional int64 succeeded = 4;
+
+  // v3.6 and after: Failed counts how many times child workflows failed
+  // +optional
+  optional int64 failed = 5;
+
+  // v3.6 and after: Phase is an enum of Active or Stopped. It changes to Stopped when stopStrategy.expression is true
+  // +optional
+  optional string phase = 6;
 }
 
 // DAGTask represents a node in the graph during DAG execution
@@ -516,6 +553,9 @@ message DAGTask {
   optional string template = 2;
 
   // Inline is the template. Template must be empty if this is declared (and vice-versa).
+  // Note: As mentioned in the corresponding definition in WorkflowStep, this struct is defined recursively,
+  // so we need "x-kubernetes-preserve-unknown-fields: true" in the validation schema.
+  // +kubebuilder:pruning:PreserveUnknownFields
   optional Template inline = 14;
 
   // Arguments are the parameter and artifact arguments to the template
@@ -528,6 +568,10 @@ message DAGTask {
   repeated string dependencies = 5;
 
   // WithItems expands a task into multiple parallel tasks from the items in the list
+  // Note: The structure of WithItems is free-form, so we need
+  // "x-kubernetes-preserve-unknown-fields: true" in the validation schema.
+  // +kubebuilder:validation:Schemaless
+  // +kubebuilder:pruning:PreserveUnknownFields
   repeated Item withItems = 6;
 
   // WithParam expands a task into multiple parallel tasks from the value in the parameter,
@@ -593,7 +637,7 @@ message DataSource {
 }
 
 message Event {
-  // Selector (https://github.com/antonmedv/expr) that we must must match the event. E.g. `payload.message == "test"`
+  // Selector (https://github.com/expr-lang/expr) that we must must match the event. E.g. `payload.message == "test"`
   optional string selector = 1;
 }
 
@@ -615,7 +659,7 @@ message GCSArtifact {
 message GCSArtifactRepository {
   optional GCSBucket gCSBucket = 1;
 
-  // KeyFormat is defines the format of how to store keys. Can reference workflow variables
+  // KeyFormat defines the format of how to store keys and can reference workflow variables.
   optional string keyFormat = 2;
 }
 
@@ -677,6 +721,9 @@ message GitArtifact {
 
   // Branch is the branch to fetch when `SingleBranch` is enabled
   optional string branch = 11;
+
+  // InsecureSkipTLS disables server certificate verification resulting in insecure HTTPS connections
+  optional bool insecureSkipTLS = 12;
 }
 
 // HDFSArtifact is the location of an HDFS artifact
@@ -711,6 +758,10 @@ message HDFSConfig {
   // HDFSUser is the user to access HDFS file system.
   // It is ignored if either ccache or keytab is used.
   optional string hdfsUser = 3;
+
+  // DataTransferProtection is the protection level for HDFS data transfer.
+  // It corresponds to the dfs.data.transfer.protection configuration in HDFS.
+  optional string dataTransferProtection = 4;
 }
 
 // HDFSKrbConfig is auth configurations for Kerberos
@@ -838,7 +889,6 @@ message Inputs {
 // The value of Item can be a map, string, bool, or number
 //
 // +protobuf.options.(gogoproto.goproto_stringer)=false
-// +kubebuilder:validation:Type=object
 message Item {
   optional bytes value = 1;
 }
@@ -972,6 +1022,14 @@ message MutexStatus {
   repeated MutexHolding waiting = 2;
 }
 
+message NodeFlag {
+  // Hooked tracks whether or not this node was triggered by hook or onExit
+  optional bool hooked = 1;
+
+  // Retried tracks whether or not this node was retried by retryStrategy
+  optional bool retried = 2;
+}
+
 message NodeResult {
   optional string phase = 1;
 
@@ -1040,6 +1098,9 @@ message NodeStatus {
 
   // Daemoned tracks whether or not this node was daemoned and need to be terminated
   optional bool daemoned = 13;
+
+  // NodeFlag tracks some history of node. e.g.) hooked, retried, etc.
+  optional NodeFlag nodeFlag = 27;
 
   // Inputs captures input parameter values and artifact locations supplied to this template invocation
   optional Inputs inputs = 14;
@@ -1120,7 +1181,7 @@ message OSSArtifact {
 message OSSArtifactRepository {
   optional OSSBucket oSSBucket = 1;
 
-  // KeyFormat is defines the format of how to store keys. Can reference workflow variables
+  // KeyFormat defines the format of how to store keys and can reference workflow variables.
   optional string keyFormat = 2;
 }
 
@@ -1146,6 +1207,9 @@ message OSSBucket {
 
   // LifecycleRule specifies how to manage bucket's lifecycle
   optional OSSLifecycleRule lifecycleRule = 7;
+
+  // UseSDKCreds tells the driver to figure out credentials based on sdk defaults.
+  optional bool useSDKCreds = 8;
 }
 
 // OSSLifecycleRule specifies how to manage bucket's lifecycle
@@ -1159,6 +1223,7 @@ message OSSLifecycleRule {
 
 // +kubebuilder:validation:Type=object
 message Object {
+  optional bytes value = 1;
 }
 
 // Outputs hold parameters, artifacts, and results from a step
@@ -1173,15 +1238,18 @@ message Outputs {
   // +patchMergeKey=name
   repeated Artifact artifacts = 2;
 
-  // Result holds the result (stdout) of a script template
+  // Result holds the result (stdout) of a script or container template, or the response body of an HTTP template
   optional string result = 3;
 
   // ExitCode holds the exit code of a script template
   optional string exitCode = 4;
 }
 
-// +kubebuilder:validation:Type=array
+// swagger:ignore
 message ParallelSteps {
+  // Note: the `json:"steps"` part exists to workaround kubebuilder limitations.
+  // There isn't actually a "steps" key in the JSON serialization; this is an anonymous list.
+  // See the custom Unmarshaller below and ./hack/manifests/crd.go
   repeated WorkflowStep steps = 1;
 }
 
@@ -1225,7 +1293,7 @@ message PodGC {
   optional k8s.io.apimachinery.pkg.apis.meta.v1.LabelSelector labelSelector = 2;
 
   // DeleteDelayDuration specifies the duration before pods in the GC queue get deleted.
-  optional k8s.io.apimachinery.pkg.apis.meta.v1.Duration deleteDelayDuration = 3;
+  optional string deleteDelayDuration = 3;
 }
 
 // Prometheus is a prometheus metric to be emitted
@@ -1335,7 +1403,7 @@ message S3Artifact {
 message S3ArtifactRepository {
   optional S3Bucket s3Bucket = 1;
 
-  // KeyFormat is defines the format of how to store keys. Can reference workflow variables
+  // KeyFormat defines the format of how to store keys and can reference workflow variables.
   optional string keyFormat = 2;
 
   // KeyPrefix is prefix used as part of the bucket key in which the controller will store artifacts.
@@ -1363,6 +1431,9 @@ message S3Bucket {
   // SecretKeySecret is the secret selector to the bucket's secret key
   optional k8s.io.api.core.v1.SecretKeySelector secretKeySecret = 6;
 
+  // SessionTokenSecret is used for ephemeral credentials like an IAM assume role or S3 access grant
+  optional k8s.io.api.core.v1.SecretKeySelector sessionTokenSecret = 12;
+
   // RoleARN is the Amazon Resource Name (ARN) of the role to assume.
   optional string roleARN = 7;
 
@@ -1373,6 +1444,9 @@ message S3Bucket {
   optional CreateS3BucketOptions createBucketIfNotPresent = 9;
 
   optional S3EncryptionOptions encryptionOptions = 10;
+
+  // CASecret specifies the secret that contains the CA, used to verify the TLS connection
+  optional k8s.io.api.core.v1.SecretKeySelector caSecret = 11;
 }
 
 // S3EncryptionOptions used to determine encryption options during s3 operations
@@ -1395,6 +1469,7 @@ message ScriptTemplate {
   optional k8s.io.api.core.v1.Container container = 1;
 
   // Source contains the source code of the script to execute
+  // +optional
   optional string source = 2;
 }
 
@@ -1437,6 +1512,13 @@ message Sequence {
 
   // Format is a printf format string to format the value in the sequence
   optional string format = 4;
+}
+
+// StopStrategy defines if the CronWorkflow should stop scheduling based on an expression. v3.6 and after
+message StopStrategy {
+  // v3.6 and after: Expression is an expression that stops scheduling workflows when true. Use the variables
+  // `cronworkflow`.`failed` or `cronworkflow`.`succeeded` to access the number of failed or successful child workflows.
+  optional string expression = 1;
 }
 
 message Submit {
@@ -1497,17 +1579,23 @@ message SuppliedValueFrom {
 // SuspendTemplate is a template subtype to suspend a workflow at a predetermined point in time
 message SuspendTemplate {
   // Duration is the seconds to wait before automatically resuming a template. Must be a string. Default unit is seconds.
-  // Could also be a Duration, e.g.: "2m", "6h", "1d"
+  // Could also be a Duration, e.g.: "2m", "6h"
   optional string duration = 1;
 }
 
 // Synchronization holds synchronization lock configuration
 message Synchronization {
-  // Semaphore holds the Semaphore configuration
+  // Semaphore holds the Semaphore configuration - deprecated, use semaphores instead
   optional SemaphoreRef semaphore = 1;
 
-  // Mutex holds the Mutex lock details
+  // Mutex holds the Mutex lock details - deprecated, use mutexes instead
   optional Mutex mutex = 2;
+
+  // v3.6 and after: Semaphores holds the list of Semaphores configuration
+  repeated SemaphoreRef semaphores = 3;
+
+  // v3.6 and after: Mutexes holds the list of Mutex lock details
+  repeated Mutex mutexes = 4;
 }
 
 // SynchronizationStatus stores the status of semaphore and mutex.
@@ -1591,6 +1679,9 @@ message Template {
   optional HTTP http = 42;
 
   // Plugin is a plugin template
+  // Note: the structure of a plugin template is free-form, so we need to have
+  // "x-kubernetes-preserve-unknown-fields: true" in the validation schema.
+  // +kubebuilder:pruning:PreserveUnknownFields
   optional Plugin plugin = 43;
 
   // Volumes is a list of volumes that can be mounted by containers in a template.
@@ -1685,6 +1776,9 @@ message Template {
   // Timeout allows to set the total node execution timeout duration counting from the node's start time.
   // This duration also includes time in which the node spends in Pending state. This duration may not be applied to Step or DAG templates.
   optional string timeout = 38;
+
+  // Annotations is a list of annotations to add to the template at runtime
+  map<string, string> annotations = 44;
 }
 
 // TemplateRef is a reference of template resource.
@@ -1726,7 +1820,7 @@ message ValueFrom {
   // JQFilter expression against the resource object in resource templates
   optional string jqFilter = 3;
 
-  // Selector (https://github.com/antonmedv/expr) that is evaluated against the event to get the value of the parameter. E.g. `payload.message`
+  // Selector (https://github.com/expr-lang/expr) that is evaluated against the event to get the value of the parameter. E.g. `payload.message`
   optional string event = 7;
 
   // Parameter reference to a step or dag task in which to retrieve an output parameter value from
@@ -1842,6 +1936,9 @@ message WorkflowLevelArtifactGC {
 
   // ForceFinalizerRemoval: if set to true, the finalizer will be removed in the case that Artifact GC fails
   optional bool forceFinalizerRemoval = 2;
+
+  // PodSpecPatch holds strategic merge patch to apply against the artgc pod spec.
+  optional string podSpecPatch = 3;
 }
 
 // WorkflowList is list of Workflow resources
@@ -1893,8 +1990,6 @@ message WorkflowSpec {
   // VolumeClaimTemplates is a list of claims that containers are allowed to reference.
   // The Workflow controller will create the claims at the beginning of the workflow
   // and delete the claims upon completion of the workflow
-  // +patchStrategy=merge
-  // +patchMergeKey=name
   repeated k8s.io.api.core.v1.PersistentVolumeClaim volumeClaimTemplates = 6;
 
   // Parallelism limits the max total parallel pods that can execute at the same time in a workflow
@@ -1931,7 +2026,7 @@ message WorkflowSpec {
   // Host networking requested for this workflow pod. Default to false.
   optional bool hostNetwork = 14;
 
-  // Set DNS policy for the pod.
+  // Set DNS policy for workflow pods.
   // Defaults to "ClusterFirst".
   // Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
   // DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.
@@ -2095,6 +2190,9 @@ message WorkflowStatus {
 
   // ArtifactGCStatus maintains the status of Artifact Garbage Collection
   optional ArtGCStatus artifactGCStatus = 19;
+
+  // TaskResultsCompletionStatus tracks task result completion status (mapped by node ID). Used to prevent premature archiving and garbage collection.
+  map<string, bool> taskResultsCompletionStatus = 20;
 }
 
 // WorkflowStep is a reference to a template to execute in a series of step
@@ -2106,6 +2204,10 @@ message WorkflowStep {
   optional string template = 2;
 
   // Inline is the template. Template must be empty if this is declared (and vice-versa).
+  // Note: This struct is defined recursively, since the inline template can potentially contain
+  // steps/DAGs that also has an "inline" field. Kubernetes doesn't allow recursive types, so we
+  // need "x-kubernetes-preserve-unknown-fields: true" in the validation schema.
+  // +kubebuilder:pruning:PreserveUnknownFields
   optional Template inline = 13;
 
   // Arguments hold arguments to the template
@@ -2115,6 +2217,10 @@ message WorkflowStep {
   optional TemplateRef templateRef = 4;
 
   // WithItems expands a step into multiple parallel steps from the items in the list
+  // Note: The structure of WithItems is free-form, so we need
+  // "x-kubernetes-preserve-unknown-fields: true" in the validation schema.
+  // +kubebuilder:validation:Schemaless
+  // +kubebuilder:pruning:PreserveUnknownFields
   repeated Item withItems = 5;
 
   // WithParam expands a step into multiple parallel steps from the value in the parameter,

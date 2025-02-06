@@ -8,9 +8,11 @@ Workflows often have outputs that are expensive to compute.
 Memoization reduces cost and workflow execution time by recording the result of previously run steps:
 it stores the outputs of a template into a specified cache with a variable key.
 
-Memoization only works for steps which have outputs, if you attempt to use it on steps which do not it should not work (there are some cases where it does, but they shouldn't). It is designed for 'pure' steps, where the purpose of running the step is to calculate some outputs based upon the step's inputs, and only the inputs. Pure steps should not interact with the outside world, but workflows won't enforce this on you.
+Prior to version 3.5 memoization only works for steps which have outputs, if you attempt to use it on steps which do not it should not work (there are some cases where it does, but they shouldn't). It was designed for 'pure' steps, where the purpose of running the step is to calculate some outputs based upon the step's inputs, and only the inputs. Pure steps should not interact with the outside world, but workflows won't enforce this on you.
 
-If your steps are not there to create outputs, but you'd still like to skip running them, you should look at the [work avoidance](work-avoidance.md) technique instead of memoization.
+If you are using workflows prior to version 3.5 you should look at the [work avoidance](work-avoidance.md) technique instead of memoization if your steps don't have outputs.
+
+In version 3.5 or later all steps can be memoized, whether or not they have outputs.
 
 ## Cache Method
 
@@ -30,18 +32,18 @@ kind: Workflow
 metadata:
    generateName: memoized-workflow-
 spec:
-   entrypoint: whalesay
+   entrypoint: print-message
    templates:
-      - name: whalesay
+      - name: print-message
         memoize:
            key: "{{inputs.parameters.message}}"
            maxAge: "10s"
            cache:
               configMap:
-                 name: whalesay-cache
+                 name: print-message-cache
 ```
 
-[Find a simple example for memoization here](https://github.com/argoproj/argo-workflows/blob/master/examples/memoize-simple.yaml).
+[Find a simple example for memoization here](https://github.com/argoproj/argo-workflows/blob/main/examples/memoize-simple.yaml).
 
 !!! Note
     In order to use memoization it is necessary to add the verbs `create` and `update` to the `configmaps` resource for the appropriate (cluster) roles. In the case of a cluster install the `argo-cluster-role` cluster role should be updated, whilst for a namespace install the `argo-role` role should be updated.
@@ -55,4 +57,4 @@ spec:
     * Reduce the size of the output parameters for the nodes that are being memoized.
     * Split your cache into different memoization keys and cache names so that each cache entry is small.
 1. My step isn't getting memoized, why not?
-   Ensure that you have specified at least one output on the step.
+   If you are running workflows <3.5 ensure that you have specified at least one output on the step.

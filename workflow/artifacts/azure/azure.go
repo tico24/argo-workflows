@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -19,7 +20,6 @@ import (
 	argoerrors "github.com/argoproj/argo-workflows/v3/errors"
 
 	"github.com/argoproj/pkg/file"
-	"github.com/pkg/errors"
 
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	artifactscommon "github.com/argoproj/argo-workflows/v3/workflow/artifacts/common"
@@ -61,6 +61,14 @@ func (azblobDriver *ArtifactDriver) newAzureContainerClient() (*container.Client
 		if azblobDriver.AccountKey == "" {
 			return nil, fmt.Errorf("accountKey secret is required for Azure Blob Storage if useSDKCreds is false")
 		}
+
+		if isSASAccountKey(azblobDriver.AccountKey) {
+			log.Infof("Provided account key is a SAS token. Using no-credential client.")
+			serviceURL := fmt.Sprintf("%s?%s", containerUrl.String(), azblobDriver.AccountKey)
+			containerClient, err := container.NewClientWithNoCredential(serviceURL, nil)
+			return containerClient, err
+		}
+
 		accountName, err := determineAccountName(containerUrl)
 		if err != nil {
 			return nil, err
@@ -81,13 +89,22 @@ func determineAccountName(containerUrl *url.URL) (string, error) {
 	if strings.HasPrefix(hostname, "127.0.0.1") || strings.HasPrefix(hostname, "localhost") {
 		parts := strings.Split(containerUrl.Path, "/")
 		if len(parts) <= 2 {
-			return "", errors.Errorf("unable to determine storage account name from %s", containerUrl)
+			return "", fmt.Errorf("unable to determine storage account name from %s", containerUrl)
 		}
 		return parts[1], nil
 	} else {
 		parts := strings.Split(hostname, ".")
 		return parts[0], nil
 	}
+}
+
+// isSASAccountKey determines whether the account key provided is a SAS token instead of a
+// storage account key. A SAS token is a string of query parameters that is appended to the
+// URL of the storage account. This function looks for the presence of a query parameter in
+// the string and returns true if found.
+func isSASAccountKey(accountKey string) bool {
+	re := regexp.MustCompile(`(\?|\&)([^=]+)\=([^&]+)`)
+	return re.MatchString(accountKey)
 }
 
 // Load downloads artifacts from Azure Blob Storage
@@ -154,6 +171,10 @@ func (azblobDriver *ArtifactDriver) Load(artifact *wfv1.Artifact, path string) e
 func DownloadFile(containerClient *container.Client, blobName, path string) error {
 	blobClient := containerClient.NewBlobClient(blobName)
 
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return fmt.Errorf("unable to create dir for file %s: %s", path, err)
+	}
 	outFile, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("unable to create file %s: %s", path, err)
@@ -178,7 +199,7 @@ func (azblobDriver *ArtifactDriver) DownloadDirectory(containerClient *container
 		return fmt.Errorf("unable to list blob %s in Azure Storage: %s", artifact.Azure.Blob, err)
 	}
 
-	err = os.Mkdir(path, 0755)
+	err = os.MkdirAll(path, 0755)
 	if err != nil {
 		return fmt.Errorf("unable to create local directory %s: %s", path, err)
 	}
