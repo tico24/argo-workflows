@@ -32,18 +32,18 @@ kind: Workflow
 metadata:
    generateName: memoized-workflow-
 spec:
-   entrypoint: whalesay
+   entrypoint: print-message
    templates:
-      - name: whalesay
+      - name: print-message
         memoize:
            key: "{{inputs.parameters.message}}"
            maxAge: "10s"
            cache:
               configMap:
-                 name: whalesay-cache
+                 name: print-message-cache
 ```
 
-[Find a simple example for memoization here](https://github.com/argoproj/argo-workflows/blob/master/examples/memoize-simple.yaml).
+[Find a simple example for memoization here](https://github.com/argoproj/argo-workflows/blob/main/examples/memoize-simple.yaml).
 
 !!! Note
     In order to use memoization it is necessary to add the verbs `create` and `update` to the `configmaps` resource for the appropriate (cluster) roles. In the case of a cluster install the `argo-cluster-role` cluster role should be updated, whilst for a namespace install the `argo-role` role should be updated.
@@ -57,4 +57,4 @@ spec:
     * Reduce the size of the output parameters for the nodes that are being memoized.
     * Split your cache into different memoization keys and cache names so that each cache entry is small.
 1. My step isn't getting memoized, why not?
-   Ensure that you have specified at least one output on the step.
+   If you are running workflows <3.5 ensure that you have specified at least one output on the step.

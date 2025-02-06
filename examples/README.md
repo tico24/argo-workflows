@@ -1,3 +1,3 @@
 # Documentation by Example
 
-This has been moved to [the docs](https://argoproj.github.io/argo-workflows/walk-through/).
+This directory contains various examples and is referenced by [the docs site](https://argo-workflows.readthedocs.io).
