@@ -15,13 +15,13 @@ import (
 func (woc *wfOperationCtx) executeWfLifeCycleHook(ctx context.Context, tmplCtx *templateresolution.Context) (bool, error) {
 	var hookNodes []*wfv1.NodeStatus
 	for hookName, hook := range woc.execWf.Spec.Hooks {
-		// exit hook will be executed in runOnExitNode
+		//exit hook will be executed in runOnExitNode
 		if hookName == wfv1.ExitLifecycleEvent {
 			continue
 		}
 		hookNodeName := generateLifeHookNodeName(woc.wf.ObjectMeta.Name, string(hookName))
 		// To check a node was triggered.
-		hookedNode, _ := woc.wf.GetNodeByName(hookNodeName)
+		hookedNode := woc.wf.GetNodeByName(hookNodeName)
 		if hook.Expression == "" {
 			return true, errors.Errorf(errors.CodeBadRequest, "Expression required for hook %s", hookNodeName)
 		}
@@ -32,9 +32,7 @@ func (woc *wfOperationCtx) executeWfLifeCycleHook(ctx context.Context, tmplCtx *
 		// executeTemplated should be invoked when hookedNode != nil, because we should reexecute the function to check mutex condition, etc.
 		if execute || hookedNode != nil {
 			woc.log.WithField("lifeCycleHook", hookName).WithField("node", hookNodeName).Infof("Running workflow level hooks")
-			hookNode, err := woc.executeTemplate(ctx, hookNodeName, &wfv1.WorkflowStep{Template: hook.Template, TemplateRef: hook.TemplateRef}, tmplCtx, hook.Arguments,
-				&executeTemplateOpts{nodeFlag: &wfv1.NodeFlag{Hooked: true}},
-			)
+			hookNode, err := woc.executeTemplate(ctx, hookNodeName, &wfv1.WorkflowStep{Template: hook.Template, TemplateRef: hook.TemplateRef}, tmplCtx, hook.Arguments, &executeTemplateOpts{})
 			if err != nil {
 				return true, err
 			}
@@ -58,13 +56,13 @@ func (woc *wfOperationCtx) executeWfLifeCycleHook(ctx context.Context, tmplCtx *
 func (woc *wfOperationCtx) executeTmplLifeCycleHook(ctx context.Context, scope *wfScope, lifeCycleHooks wfv1.LifecycleHooks, parentNode *wfv1.NodeStatus, boundaryID string, tmplCtx *templateresolution.Context, prefix string) (bool, error) {
 	var hookNodes []*wfv1.NodeStatus
 	for hookName, hook := range lifeCycleHooks {
-		// exit hook will be executed in runOnExitNode
+		//exit hook will be executed in runOnExitNode
 		if hookName == wfv1.ExitLifecycleEvent {
 			continue
 		}
 		hookNodeName := generateLifeHookNodeName(parentNode.Name, string(hookName))
 		// To check a node was triggered
-		hookedNode, _ := woc.wf.GetNodeByName(hookNodeName)
+		hookedNode := woc.wf.GetNodeByName(hookNodeName)
 		if hook.Expression == "" {
 			return false, errors.Errorf(errors.CodeBadRequest, "Expression required for hook %s", hookNodeName)
 		}
@@ -75,7 +73,8 @@ func (woc *wfOperationCtx) executeTmplLifeCycleHook(ctx context.Context, scope *
 		// executeTemplated should be invoked when hookedNode != nil, because we should reexecute the function to check mutex condition, etc.
 		if execute || hookedNode != nil {
 			outputs := parentNode.Outputs
-			if lastChildNode := woc.possiblyGetRetryChildNode(parentNode); lastChildNode != nil {
+			if parentNode.Type == wfv1.NodeTypeRetry {
+				lastChildNode := getChildNodeIndex(parentNode, woc.wf.Status.Nodes, -1)
 				outputs = lastChildNode.Outputs
 			}
 			woc.log.WithField("lifeCycleHook", hookName).WithField("node", hookNodeName).WithField("hookName", hookName).Info("Running hooks")
@@ -89,7 +88,6 @@ func (woc *wfOperationCtx) executeTmplLifeCycleHook(ctx context.Context, scope *
 			}
 			hookNode, err := woc.executeTemplate(ctx, hookNodeName, &wfv1.WorkflowStep{Template: hook.Template, TemplateRef: hook.TemplateRef}, tmplCtx, resolvedArgs, &executeTemplateOpts{
 				boundaryID: boundaryID,
-				nodeFlag:   &wfv1.NodeFlag{Hooked: true},
 			})
 			if err != nil {
 				return false, err

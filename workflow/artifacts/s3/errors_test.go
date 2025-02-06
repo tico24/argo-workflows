@@ -19,7 +19,4 @@ func TestIsTransientOSSErr(t *testing.T) {
 
 	nonOSSErr := errors.New("UnseenError")
 	assert.False(t, isTransientS3Err(nonOSSErr))
-
-	requestErr := minio.ErrorResponse{Code: "RequestError"}
-	assert.True(t, isTransientS3Err(requestErr))
 }

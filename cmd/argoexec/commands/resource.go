@@ -3,7 +3,9 @@ package commands
 import (
 	"context"
 	"fmt"
+	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/argoproj/argo-workflows/v3/workflow/common"
@@ -13,14 +15,17 @@ func NewResourceCommand() *cobra.Command {
 	command := cobra.Command{
 		Use:   "resource (get|create|apply|delete) MANIFEST",
 		Short: "update a resource and wait for resource conditions",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				cmd.HelpFunc()(cmd, args)
+				os.Exit(1)
+			}
+
+			ctx := context.Background()
 			err := execResource(ctx, args[0])
 			if err != nil {
-				return fmt.Errorf("%+v", err)
+				log.Fatalf("%+v", err)
 			}
-			return nil
 		},
 	}
 	return &command
@@ -28,21 +33,12 @@ func NewResourceCommand() *cobra.Command {
 
 func execResource(ctx context.Context, action string) error {
 	wfExecutor := initExecutor()
-
-	// Don't allow cancellation to impact capture of results, parameters, artifacts, or defers.
-	bgCtx := context.Background()
-
-	wfExecutor.InitializeOutput(bgCtx)
-	defer wfExecutor.HandleError(bgCtx)
-	if !wfExecutor.Template.SaveLogsAsArtifact() {
-		defer wfExecutor.FinalizeOutput(bgCtx) //Ensures the LabelKeyReportOutputsCompleted is set to true.
-	}
+	defer wfExecutor.HandleError(ctx)
 	err := wfExecutor.StageFiles()
 	if err != nil {
 		wfExecutor.AddError(err)
 		return err
 	}
-
 	isDelete := action == "delete"
 	if isDelete && (wfExecutor.Template.Resource.SuccessCondition != "" || wfExecutor.Template.Resource.FailureCondition != "" || len(wfExecutor.Template.Outputs.Parameters) > 0) {
 		err = fmt.Errorf("successCondition, failureCondition and outputs are not supported for delete action")

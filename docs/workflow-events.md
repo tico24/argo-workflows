@@ -1,9 +1,8 @@
 # Workflow Events
 
-> v2.7.2 and after
+> v2.7.2
 
-!!! Warning "Kubernetes events"
-    Do not use Kubernetes events for automation as they can be lost or rolled-up.
+⚠️ Do not use Kubernetes events for automation. Events maybe lost or rolled-up.
 
 We emit Kubernetes events on certain events.
 

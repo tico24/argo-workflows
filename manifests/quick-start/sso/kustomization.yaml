@@ -3,7 +3,8 @@ kind: Kustomization
 
 resources:
   - ../base
-  - ../../base/crds/minimal
+  - dex
 
-components:
-  - ../../components/sso
+patchesStrategicMerge:
+  - overlays/workflow-controller-configmap.yaml
+  - overlays/argo-server-sa.yaml

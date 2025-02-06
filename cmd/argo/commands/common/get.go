@@ -20,7 +20,7 @@ import (
 const onExitSuffix = "onExit"
 
 type GetFlags struct {
-	Output                  EnumFlagValue
+	Output                  string
 	NodeFieldSelectorString string
 
 	// Only used for backwards compatibility
@@ -147,9 +147,9 @@ func PrintWorkflowHelper(wf *wfv1.Workflow, getArgs GetFlags) string {
 		w := tabwriter.NewWriter(writerBuffer, 0, 0, 2, ' ', 0)
 		out += "\n"
 		// apply a dummy FgDefault format to align tab writer with the rest of the columns
-		if getArgs.Output.String() == "wide" {
+		if getArgs.Output == "wide" {
 			_, _ = fmt.Fprintf(w, "%s\tTEMPLATE\tPODNAME\tDURATION\tARTIFACTS\tMESSAGE\tRESOURCESDURATION\tNODENAME\n", ansiFormat("STEP", FgDefault))
-		} else if getArgs.Output.String() == "short" {
+		} else if getArgs.Output == "short" {
 			_, _ = fmt.Fprintf(w, "%s\tTEMPLATE\tPODNAME\tDURATION\tMESSAGE\tNODENAME\n", ansiFormat("STEP", FgDefault))
 		} else {
 			_, _ = fmt.Fprintf(w, "%s\tTEMPLATE\tPODNAME\tDURATION\tMESSAGE\n", ansiFormat("STEP", FgDefault))
@@ -171,7 +171,7 @@ func PrintWorkflowHelper(wf *wfv1.Workflow, getArgs GetFlags) string {
 			onExitRoot.renderNodes(w, wf, 0, " ", " ", getArgs)
 		}
 		_ = w.Flush()
-		if getArgs.Output.String() == "short" {
+		if getArgs.Output == "short" {
 			out = writerBuffer.String()
 		} else {
 			out += writerBuffer.String()
@@ -478,27 +478,27 @@ func renderChild(w *tabwriter.Writer, wf *wfv1.Workflow, nInfo renderNode, depth
 
 // Main method to print information of node in get
 func printNode(w *tabwriter.Writer, node wfv1.NodeStatus, wfName, nodePrefix string, getArgs GetFlags, podNameVersion util.PodNameVersion) {
-	nodeName := node.Name
-	fmtNodeName := fmt.Sprintf("%s %s", JobStatusIconMap[node.Phase], node.DisplayName)
+	nodeName := fmt.Sprintf("%s %s", JobStatusIconMap[node.Phase], node.DisplayName)
 	if node.IsActiveSuspendNode() {
-		fmtNodeName = fmt.Sprintf("%s %s", NodeTypeIconMap[node.Type], node.DisplayName)
+		nodeName = fmt.Sprintf("%s %s", NodeTypeIconMap[node.Type], node.DisplayName)
 	}
-	templateName := util.GetTemplateFromNode(node)
-	fmtTemplateName := ""
+	templateName := ""
 	if node.TemplateRef != nil {
-		fmtTemplateName = fmt.Sprintf("%s/%s", node.TemplateRef.Name, node.TemplateRef.Template)
+		templateName = fmt.Sprintf("%s/%s", node.TemplateRef.Name, node.TemplateRef.Template)
 	} else if node.TemplateName != "" {
-		fmtTemplateName = node.TemplateName
+		templateName = node.TemplateName
 	}
 	var args []interface{}
 	duration := humanize.RelativeDurationShort(node.StartedAt.Time, node.FinishedAt.Time)
 	if node.Type == wfv1.NodeTypePod {
-		podName := util.GeneratePodName(wfName, nodeName, templateName, node.ID, podNameVersion)
-		args = []interface{}{nodePrefix, fmtNodeName, fmtTemplateName, podName, duration, node.Message, ""}
+		// node.Name is used here because nodeName may contain additionally formatting.
+		// We want to use the original naming to ensure the correct hash is dervied
+		podName := util.GeneratePodName(wfName, node.Name, templateName, node.ID, podNameVersion)
+		args = []interface{}{nodePrefix, nodeName, templateName, podName, duration, node.Message, ""}
 	} else {
-		args = []interface{}{nodePrefix, fmtNodeName, fmtTemplateName, "", "", node.Message, ""}
+		args = []interface{}{nodePrefix, nodeName, templateName, "", "", node.Message, ""}
 	}
-	if getArgs.Output.String() == "wide" {
+	if getArgs.Output == "wide" {
 		msg := args[len(args)-2]
 		args[len(args)-2] = getArtifactsString(node)
 		args[len(args)-1] = msg
@@ -507,7 +507,7 @@ func printNode(w *tabwriter.Writer, node wfv1.NodeStatus, wfName, nodePrefix str
 			args[len(args)-1] = node.HostNodeName
 		}
 		_, _ = fmt.Fprintf(w, "%s%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", args...)
-	} else if getArgs.Output.String() == "short" {
+	} else if getArgs.Output == "short" {
 		if node.Type == wfv1.NodeTypePod {
 			args[len(args)-1] = node.HostNodeName
 		}

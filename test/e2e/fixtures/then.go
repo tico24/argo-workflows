@@ -28,7 +28,6 @@ type Then struct {
 	wf          *wfv1.Workflow
 	cronWf      *wfv1.CronWorkflow
 	client      v1alpha1.WorkflowInterface
-	wftsClient  v1alpha1.WorkflowTaskSetInterface
 	cronClient  v1alpha1.CronWorkflowInterface
 	hydrator    hydrator.Interface
 	kubeClient  kubernetes.Interface
@@ -93,7 +92,7 @@ func (t *Then) ExpectWorkflowNode(selector func(status wfv1.NodeStatus) bool, f 
 					ObjectMeta: *metadata,
 				}
 				version := util.GetWorkflowPodNameVersion(wf)
-				podName := util.GeneratePodName(t.wf.Name, n.Name, util.GetTemplateFromNode(*n), n.ID, version)
+				podName := util.GeneratePodName(t.wf.Name, n.Name, n.TemplateName, n.ID, version)
 
 				var err error
 				ctx := context.Background()
@@ -105,11 +104,10 @@ func (t *Then) ExpectWorkflowNode(selector func(status wfv1.NodeStatus) bool, f 
 					p = nil // i did not expect to need to nil the pod, but here we are
 				}
 			}
-			f(tt, n, p)
 		} else {
 			_, _ = fmt.Println("Did not find node")
-			t.t.Error("Did not find expected node")
 		}
+		f(tt, n, p)
 	})
 }
 
@@ -127,15 +125,6 @@ func (t *Then) ExpectCron(block func(t *testing.T, cronWf *wfv1.CronWorkflow)) *
 	}
 	block(t.t, cronWf)
 	return t
-}
-
-func (t *Then) ExpectWorkflowListFromCronWorkflow(block func(t *testing.T, wfList *wfv1.WorkflowList)) *Then {
-	t.t.Helper()
-	if t.cronWf == nil {
-		t.t.Fatal("No cron workflow to match against")
-	}
-	labelSelector := common.LabelKeyCronWorkflow + "=" + t.cronWf.Name
-	return t.ExpectWorkflowList(metav1.ListOptions{LabelSelector: labelSelector}, block)
 }
 
 func (t *Then) ExpectWorkflowList(listOptions metav1.ListOptions, block func(t *testing.T, wfList *wfv1.WorkflowList)) *Then {
@@ -235,10 +224,7 @@ func (t *Then) ExpectArtifact(nodeName string, artifactName string, bucketName s
 		nodeName = t.wf.Name
 	}
 
-	n, err := t.wf.GetNodeByName(nodeName)
-	if err != nil {
-		t.t.Error("was unable to get node by name")
-	}
+	n := t.wf.GetNodeByName(nodeName)
 	a := n.GetOutputs().GetArtifactByName(artifactName)
 	key, _ := a.GetKey()
 
@@ -273,17 +259,6 @@ func (t *Then) ExpectPods(f func(t *testing.T, pods []apiv1.Pod)) *Then {
 	return t
 }
 
-func (t *Then) ExpectWorkflowTaskSet(block func(t *testing.T, wfts *wfv1.WorkflowTaskSet)) *Then {
-	t.t.Helper()
-	ctx := context.Background()
-	wfts, err := t.wftsClient.Get(ctx, t.wf.Name, metav1.GetOptions{})
-	if err != nil {
-		t.t.Fatal(err)
-	}
-	block(t.t, wfts)
-	return t
-}
-
 func (t *Then) RunCli(args []string, block func(t *testing.T, output string, err error)) *Then {
 	t.t.Helper()
 	output, err := Exec("../../dist/argo", append([]string{"-n", Namespace}, args...)...)
@@ -295,7 +270,6 @@ func (t *Then) When() *When {
 	return &When{
 		t:           t.t,
 		client:      t.client,
-		wftsClient:  t.wftsClient,
 		cronClient:  t.cronClient,
 		hydrator:    t.hydrator,
 		wf:          t.wf,

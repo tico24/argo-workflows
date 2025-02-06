@@ -18,10 +18,9 @@ type SSOConfig struct {
 	Scopes        []string        `json:"scopes,omitempty"`
 	SessionExpiry metav1.Duration `json:"sessionExpiry,omitempty"`
 	// customGroupClaimName will override the groups claim name
-	CustomGroupClaimName string   `json:"customGroupClaimName,omitempty"`
-	UserInfoPath         string   `json:"userInfoPath,omitempty"`
-	InsecureSkipVerify   bool     `json:"insecureSkipVerify,omitempty"`
-	FilterGroupsRegex    []string `json:"filterGroupsRegex,omitempty"`
+	CustomGroupClaimName string `json:"customGroupClaimName,omitempty"`
+	UserInfoPath         string `json:"userInfoPath,omitempty"`
+	InsecureSkipVerify   bool   `json:"insecureSkipVerify,omitempty"`
 }
 
 func (c SSOConfig) GetSessionExpiry() time.Duration {

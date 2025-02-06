@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/expr-lang/expr"
+	"github.com/antonmedv/expr"
 
 	"github.com/argoproj/argo-workflows/v3/errors"
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
@@ -77,11 +77,7 @@ func (s *wfScope) resolveParameter(p *wfv1.ValueFrom) (interface{}, error) {
 	}
 	if p.Expression != "" {
 		env := env.GetFuncMap(s.scope)
-		program, err := expr.Compile(p.Expression, expr.Env(env))
-		if err != nil {
-			return nil, err
-		}
-		return expr.Run(program, env)
+		return expr.Eval(p.Expression, env)
 	} else {
 		return s.resolveVar(p.Parameter)
 	}
@@ -97,15 +93,7 @@ func (s *wfScope) resolveArtifact(art *wfv1.Artifact) (*wfv1.Artifact, error) {
 
 	if art.FromExpression != "" {
 		env := env.GetFuncMap(s.scope)
-		program, err := expr.Compile(art.FromExpression, expr.Env(env))
-		if err != nil {
-			return nil, err
-		}
-		val, err = expr.Run(program, env)
-		if err != nil {
-			return nil, err
-		}
-
+		val, err = expr.Eval(art.FromExpression, env)
 	} else {
 		val, err = s.resolveVar(art.From)
 	}
@@ -115,13 +103,7 @@ func (s *wfScope) resolveArtifact(art *wfv1.Artifact) (*wfv1.Artifact, error) {
 	}
 	valArt, ok := val.(wfv1.Artifact)
 	if !ok {
-		//If the workflow refers itself input artifacts in fromExpression, the val type is "*wfv1.Artifact"
-		ptArt, ok := val.(*wfv1.Artifact)
-		if ok {
-			valArt = *ptArt
-		} else {
-			return nil, errors.Errorf(errors.CodeBadRequest, "Variable {{%v}} is not an artifact", art)
-		}
+		return nil, errors.Errorf(errors.CodeBadRequest, "Variable {{%v}} is not an artifact", art)
 	}
 
 	if art.SubPath != "" {
@@ -144,11 +126,7 @@ func (s *wfScope) resolveArtifact(art *wfv1.Artifact) (*wfv1.Artifact, error) {
 			return copyArt, errors.New(errors.CodeBadRequest, "failed to unmarshal artifact subpath for templating")
 		}
 
-		err = copyArt.AppendToKey(resolvedSubPath)
-		if err != nil && copyArt.Optional { //Ignore error when artifact optional
-			return copyArt, nil
-		}
-		return copyArt, err
+		return copyArt, copyArt.AppendToKey(resolvedSubPath)
 	}
 
 	return &valArt, nil

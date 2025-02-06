@@ -2,48 +2,38 @@ package clustertemplate
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
 	"github.com/argoproj/argo-workflows/v3/cmd/argo/commands/client"
-	"github.com/argoproj/argo-workflows/v3/cmd/argo/commands/common"
 	"github.com/argoproj/argo-workflows/v3/pkg/apiclient/clusterworkflowtemplate"
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 )
 
+type listFlags struct {
+	output string // --output
+}
+
 func NewListCommand() *cobra.Command {
-	var output = common.EnumFlagValue{
-		AllowedValues: []string{"wide", "name"},
-	}
+	var listArgs listFlags
 	command := &cobra.Command{
 		Use:   "list",
 		Short: "list cluster workflow templates",
-		Example: `# List Cluster Workflow Templates:
-  argo cluster-template list
-	
-# List Cluster Workflow Templates with additional details such as labels, annotations, and status:
-  argo cluster-template list --output wide
-  
-# List Cluster Workflow Templates by name only:
-  argo cluster-template list -o name
-`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, apiClient, err := client.NewAPIClient(cmd.Context())
-			if err != nil {
-				return err
-			}
+		Run: func(cmd *cobra.Command, args []string) {
+			ctx, apiClient := client.NewAPIClient(cmd.Context())
 			serviceClient, err := apiClient.NewClusterWorkflowTemplateServiceClient()
 			if err != nil {
-				return err
+				log.Fatal(err)
 			}
 
 			cwftmplList, err := serviceClient.ListClusterWorkflowTemplates(ctx, &clusterworkflowtemplate.ClusterWorkflowTemplateListRequest{})
 			if err != nil {
-				return err
+				log.Fatal(err)
 			}
-			switch output.String() {
+			switch listArgs.output {
 			case "", "wide":
 				printTable(cwftmplList.Items)
 			case "name":
@@ -51,12 +41,11 @@ func NewListCommand() *cobra.Command {
 					fmt.Println(cwftmp.ObjectMeta.Name)
 				}
 			default:
-				return fmt.Errorf("Unknown output mode: %s", output.String())
+				log.Fatalf("Unknown output mode: %s", listArgs.output)
 			}
-			return nil
 		},
 	}
-	command.Flags().VarP(&output, "output", "o", "Output format. "+output.Usage())
+	command.Flags().StringVarP(&listArgs.output, "output", "o", "", "Output format. One of: wide|name")
 	return command
 }
 

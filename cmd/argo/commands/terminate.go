@@ -1,9 +1,10 @@
 package commands
 
 import (
-	"errors"
 	"fmt"
+	"os"
 
+	"github.com/argoproj/pkg/errors"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -45,7 +46,6 @@ func NewTerminateCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "terminate WORKFLOW WORKFLOW2...",
 		Short: "terminate zero or more workflows immediately",
-		Long:  "Immediately stop a workflow and do not run any exit handlers.",
 		Example: `# Terminate a workflow:
 
   argo terminate my-wf
@@ -62,17 +62,13 @@ func NewTerminateCommand() *cobra.Command {
 
   argo terminate --field-selector metadata.namespace=argo
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
+		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 && !t.isList() {
-				return errors.New("requires either selector or workflow")
+				cmd.HelpFunc()(cmd, args)
+				os.Exit(1)
 			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, apiClient, err := client.NewAPIClient(cmd.Context())
-			if err != nil {
-				return err
-			}
+
+			ctx, apiClient := client.NewAPIClient(cmd.Context())
 			serviceClient := apiClient.NewWorkflowServiceClient()
 			t.namespace = client.Namespace()
 
@@ -84,9 +80,7 @@ func NewTerminateCommand() *cobra.Command {
 					fields:    t.fields,
 					labels:    t.labels,
 				})
-				if err != nil {
-					return err
-				}
+				errors.CheckError(err)
 				workflows = append(workflows, listed...)
 			} else {
 				workflows = t.convertToWorkflows(args)
@@ -102,12 +96,9 @@ func NewTerminateCommand() *cobra.Command {
 					Name:      w.Name,
 					Namespace: w.Namespace,
 				})
-				if err != nil {
-					return err
-				}
+				errors.CheckError(err)
 				fmt.Printf("workflow %s terminated\n", wf.Name)
 			}
-			return nil
 		},
 	}
 

@@ -34,7 +34,7 @@ Inputs to `DAGTemplate`s use the `arguments` format:
 dag:
   tasks:
   - name: step-A
-    template: step-template-a
+    template: step-template-A
     arguments:
       parameters:
       - name: template-param-1
@@ -58,13 +58,13 @@ spec:
     dag:
       tasks:
       - name: step-A 
-        template: step-template-a
+        template: step-template-A
         arguments:
           parameters:
           - name: template-param-1
             value: "{{workflow.parameters.workflow-param-1}}"
  
-  - name: step-template-a
+  - name: step-template-A
     inputs:
       parameters:
         - name: template-param-1
@@ -79,7 +79,7 @@ To run this example: `argo submit -n argo example.yaml -p 'workflow-param-1="abc
 
 ### Using Previous Step Outputs As Inputs
 
-In `DAGTemplate`s, it is common to want to take the output of one step and send it as the input to another step. However, there is a difference in how this works for artifacts vs parameters. Suppose our `step-template-a` defines some outputs:
+In `DAGTemplate`s, it is common to want to take the output of one step and send it as the input to another step. However, there is a difference in how this works for artifacts vs parameters. Suppose our `step-template-A` defines some outputs:
 
 ```yaml
 outputs:
@@ -98,14 +98,14 @@ In my `DAGTemplate`, I can send these outputs to another template like this:
 dag:
   tasks:
   - name: step-A 
-    template: step-template-a
+    template: step-template-A
     arguments:
       parameters:
       - name: template-param-1
         value: "{{workflow.parameters.workflow-param-1}}"
   - name: step-B
     dependencies: [step-A]
-    template: step-template-b
+    template: step-template-B
     arguments:
       parameters:
       - name: template-param-2

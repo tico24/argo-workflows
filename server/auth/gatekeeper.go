@@ -55,7 +55,7 @@ type Gatekeeper interface {
 	StreamServerInterceptor() grpc.StreamServerInterceptor
 }
 
-type ClientForAuthorization func(authorization string, config *rest.Config) (*rest.Config, *servertypes.Clients, error)
+type ClientForAuthorization func(authorization string) (*rest.Config, *servertypes.Clients, error)
 
 type gatekeeper struct {
 	Modes Modes
@@ -190,11 +190,11 @@ func (s gatekeeper) getClients(ctx context.Context, req interface{}) (*servertyp
 		}
 	}
 	if !valid {
-		return nil, nil, status.Error(codes.Unauthenticated, "token not valid. see https://argo-workflows.readthedocs.io/en/latest/faq/")
+		return nil, nil, status.Error(codes.Unauthenticated, "token not valid for running mode")
 	}
 	switch mode {
 	case Client:
-		restConfig, clients, err := s.clientForAuthorization(authorization, s.restConfig)
+		restConfig, clients, err := s.clientForAuthorization(authorization)
 		if err != nil {
 			return nil, nil, status.Error(codes.Unauthenticated, err.Error())
 		}
@@ -286,7 +286,7 @@ func (s *gatekeeper) getClientsForServiceAccount(ctx context.Context, claims *ty
 	if err != nil {
 		return nil, err
 	}
-	_, clients, err := s.clientForAuthorization(authorization, s.restConfig)
+	_, clients, err := s.clientForAuthorization(authorization)
 	if err != nil {
 		return nil, err
 	}
@@ -337,12 +337,11 @@ func addClaimsLogFields(claims *types.Claims, fields log.Fields) log.Fields {
 	return fields
 }
 
-func DefaultClientForAuthorization(authorization string, config *rest.Config) (*rest.Config, *servertypes.Clients, error) {
+func DefaultClientForAuthorization(authorization string) (*rest.Config, *servertypes.Clients, error) {
 	restConfig, err := kubeconfig.GetRestConfig(authorization)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create REST config: %w", err)
 	}
-	restConfig = mergeServerRestConfig(config, restConfig)
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failure to create dynamic client: %w", err)
@@ -370,12 +369,4 @@ func DefaultClientForAuthorization(authorization string, config *rest.Config) (*
 		EventSource: eventSourceClient,
 		Kubernetes:  kubeClient,
 	}, nil
-}
-
-func mergeServerRestConfig(argoServerConfig *rest.Config, newConfig *rest.Config) *rest.Config {
-	newConfig.Burst = argoServerConfig.Burst
-	newConfig.QPS = argoServerConfig.QPS
-	newConfig.UserAgent = argoServerConfig.UserAgent
-	// TO DO: Merge other common configurations，such as RateLimiter.
-	return newConfig
 }

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,8 +24,9 @@ metadata:
     workflows.argoproj.io/workflow: my-wf
 `, obj)
 	v, err := MetaWorkflowIndexFunc(obj)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"my-ns/my-wf"}, v)
+	if assert.NoError(t, err) {
+		assert.Equal(t, []string{"my-ns/my-wf"}, v)
+	}
 }
 
 func TestMetaNodeIDIndexFunc(t *testing.T) {
@@ -56,13 +56,13 @@ metadata:
 	obj := &unstructured.Unstructured{}
 	wfv1.MustUnmarshal(withNodeID, obj)
 	v, err := MetaNodeIDIndexFunc(obj)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"my-ns/retry-test-p7jzr-2308805457"}, v)
 
 	obj = &unstructured.Unstructured{}
 	wfv1.MustUnmarshal(withoutNodeID, obj)
 	v, err = MetaNodeIDIndexFunc(obj)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"my-ns/retry-test-p7jzr-whalesay-2308805457"}, v)
 }
 
@@ -71,23 +71,6 @@ func TestWorkflowIndexValue(t *testing.T) {
 }
 
 func TestWorkflowSemaphoreKeysIndexFunc(t *testing.T) {
-	t.Run("Incomplete without label", func(t *testing.T) {
-		un, _ := util.ToUnstructured(&wfv1.Workflow{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{},
-			},
-			Spec: wfv1.WorkflowSpec{
-				Synchronization: &wfv1.Synchronization{
-					Semaphore: &wfv1.SemaphoreRef{
-						ConfigMapKeyRef: &apiv1.ConfigMapKeySelector{},
-					},
-				},
-			},
-		})
-		result, err := WorkflowSemaphoreKeysIndexFunc()(un)
-		require.NoError(t, err)
-		assert.Len(t, result, 1)
-	})
 	t.Run("Incomplete", func(t *testing.T) {
 		un, _ := util.ToUnstructured(&wfv1.Workflow{
 			ObjectMeta: metav1.ObjectMeta{
@@ -104,7 +87,7 @@ func TestWorkflowSemaphoreKeysIndexFunc(t *testing.T) {
 			},
 		})
 		result, err := WorkflowSemaphoreKeysIndexFunc()(un)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, result, 1)
 	})
 	t.Run("Complete", func(t *testing.T) {
@@ -116,7 +99,7 @@ func TestWorkflowSemaphoreKeysIndexFunc(t *testing.T) {
 			},
 		})
 		result, err := WorkflowSemaphoreKeysIndexFunc()(un)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
 }

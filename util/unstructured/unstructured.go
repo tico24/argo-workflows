@@ -18,25 +18,25 @@ import (
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewUnstructuredInformer(resource schema.GroupVersionResource, client dynamic.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredUnstructuredInformer(resource, client, namespace, resyncPeriod, indexers, nil, nil)
+	return NewFilteredUnstructuredInformer(resource, client, namespace, resyncPeriod, indexers, nil)
 }
 
 // NewFilteredUnstructuredInformer constructs a new informer for Unstructured type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredUnstructuredInformer(resource schema.GroupVersionResource, client dynamic.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListRequestListOptions internalinterfaces.TweakListOptionsFunc, tweakWatchRequestListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredUnstructuredInformer(resource schema.GroupVersionResource, client dynamic.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	ctx := context.Background()
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				if tweakListRequestListOptions != nil {
-					tweakListRequestListOptions(&options)
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
 				}
 				return client.Resource(resource).Namespace(namespace).List(ctx, options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				if tweakWatchRequestListOptions != nil {
-					tweakWatchRequestListOptions(&options)
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
 				}
 				return client.Resource(resource).Namespace(namespace).Watch(ctx, options)
 			},

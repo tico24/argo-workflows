@@ -3,7 +3,7 @@ package template
 import (
 	"strings"
 
-	"github.com/expr-lang/expr"
+	"github.com/antonmedv/expr"
 
 	"github.com/argoproj/argo-workflows/v3/errors"
 )
@@ -13,11 +13,7 @@ func ResolveVar(s string, m map[string]interface{}) (interface{}, error) {
 	kind, expression := parseTag(tag)
 	switch kind {
 	case kindExpression:
-		program, err := expr.Compile(expression, expr.Env(m))
-		if err != nil {
-			return nil, errors.Errorf(errors.CodeBadRequest, "Unable to compile: %q", expression)
-		}
-		result, err := expr.Run(program, m)
+		result, err := expr.Eval(expression, m)
 		if err != nil {
 			return nil, errors.Errorf(errors.CodeBadRequest, "Invalid expression: %q", expression)
 		}

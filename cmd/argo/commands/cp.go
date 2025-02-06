@@ -17,7 +17,6 @@ import (
 	"github.com/argoproj/argo-workflows/v3/pkg/apiclient"
 	workflowpkg "github.com/argoproj/argo-workflows/v3/pkg/apiclient/workflow"
 	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-	wfutil "github.com/argoproj/argo-workflows/v3/workflow/util"
 )
 
 func NewCpCommand() *cobra.Command {
@@ -48,10 +47,7 @@ func NewCpCommand() *cobra.Command {
 			workflowName := args[0]
 			outputDir := args[1]
 
-			ctx, apiClient, err := client.NewAPIClient(cmd.Context())
-			if err != nil {
-				return err
-			}
+			ctx, apiClient := client.NewAPIClient(cmd.Context())
 			serviceClient := apiClient.NewWorkflowServiceClient()
 			if len(namespace) == 0 {
 				namespace = client.Namespace()
@@ -86,7 +82,7 @@ func NewCpCommand() *cobra.Command {
 				if nodeInfo == nil {
 					return fmt.Errorf("could not get node status for node ID %s", artifact.NodeID)
 				}
-				customPath = strings.Replace(customPath, "{templateName}", wfutil.GetTemplateFromNode(*nodeInfo), 1)
+				customPath = strings.Replace(customPath, "{templateName}", nodeInfo.TemplateName, 1)
 				customPath = strings.Replace(customPath, "{namespace}", namespace, 1)
 				customPath = strings.Replace(customPath, "{workflowName}", workflowName, 1)
 				customPath = strings.Replace(customPath, "{nodeId}", artifact.NodeID, 1)
@@ -120,11 +116,7 @@ func getAndStoreArtifactData(namespace string, workflowName string, nodeId strin
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	authString, err := client.GetAuthString()
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Authorization", authString)
+	request.Header.Set("Authorization", client.GetAuthString())
 	resp, err := c.Do(request)
 	if err != nil {
 		return fmt.Errorf("request failed with: %w", err)

@@ -40,13 +40,6 @@ type ArtifactServer struct {
 	artifactRepositories artifactrepositories.Interface
 }
 
-type Direction string
-
-const (
-	Outputs Direction = "outputs"
-	Inputs  Direction = "inputs"
-)
-
 func NewArtifactServer(authN auth.Gatekeeper, hydrator hydrator.Interface, wfArchive sqldb.WorkflowArchive, instanceIDService instanceid.Service, artifactRepositories artifactrepositories.Interface) *ArtifactServer {
 	return newArtifactServer(authN, hydrator, wfArchive, instanceIDService, artifact.NewDriver, artifactRepositories)
 }
@@ -66,9 +59,9 @@ func (a *ArtifactServer) GetInputArtifact(w http.ResponseWriter, r *http.Request
 // single endpoint to be able to handle serving directories as well as files, both those that have been archived and those that haven't
 // Valid requests:
 //
-//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/[inputs|outputs]/{artifactName}
-//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/[inputs|outputs]/{artifactName}/{fileName}
-//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/[inputs|outputs]/{artifactName}/{fileDir}/.../{fileName}
+//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/outputs/{artifactName}
+//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/outputs/{artifactName}/{fileName}
+//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/outputs/{artifactName}/{fileDir}/.../{fileName}
 //
 // 'id' field represents 'uid' for archived workflows and 'name' for non-archived
 func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request) {
@@ -99,10 +92,10 @@ func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request)
 	archiveDiscriminator := requestPath[archiveDiscrimIndex]
 	id := requestPath[idIndex] // if archiveDiscriminator == "archived-workflows", this represents workflow UID; if archiveDiscriminator == "workflows", this represents workflow name
 	nodeId := requestPath[nodeIdIndex]
-	direction := Direction(requestPath[directionIndex])
+	direction := requestPath[directionIndex]
 	artifactName := requestPath[artifactNameIndex]
 
-	if direction != Outputs && direction != Inputs { // for now we handle output and input artifacts
+	if direction != "outputs" { // for now we just handle output artifacts
 		a.httpBadRequestError(w)
 		return
 	}
@@ -154,12 +147,7 @@ func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	isInput := false
-	if direction == Inputs {
-		isInput = true
-	}
-
-	artifact, driver, err := a.getArtifactAndDriver(ctx, nodeId, artifactName, isInput, wf, fileName)
+	artifact, driver, err := a.getArtifactAndDriver(ctx, nodeId, artifactName, false, wf, fileName)
 	if err != nil {
 		a.serverInternalError(err, w)
 		return
@@ -390,16 +378,10 @@ func (a *ArtifactServer) getArtifactAndDriver(ctx context.Context, nodeId, artif
 	kubeClient := auth.GetKubeClient(ctx)
 
 	var art *wfv1.Artifact
-
-	nodeStatus, err := wf.Status.Nodes.Get(nodeId)
-	if err != nil {
-		log.Errorf("Was unable to retrieve node for %s", nodeId)
-		return nil, nil, fmt.Errorf("was not able to retrieve node")
-	}
 	if isInput {
-		art = nodeStatus.Inputs.GetArtifactByName(artifactName)
+		art = wf.Status.Nodes[nodeId].Inputs.GetArtifactByName(artifactName)
 	} else {
-		art = nodeStatus.Outputs.GetArtifactByName(artifactName)
+		art = wf.Status.Nodes[nodeId].Outputs.GetArtifactByName(artifactName)
 	}
 	if art == nil {
 		return nil, nil, fmt.Errorf("artifact not found: %s, isInput=%t, Workflow Status=%+v", artifactName, isInput, wf.Status)
@@ -413,12 +395,7 @@ func (a *ArtifactServer) getArtifactAndDriver(ctx context.Context, nodeId, artif
 	// 5. Inline Template
 
 	var archiveLocation *wfv1.ArtifactLocation
-	templateNode, err := wf.Status.Nodes.Get(nodeId)
-	if err != nil {
-		log.Errorf("was unable to retrieve node for %s", nodeId)
-		return nil, nil, fmt.Errorf("Unable to get artifact and driver due to inability to get node due for %s, err=%s", nodeId, err)
-	}
-	templateName := util.GetTemplateFromNode(*templateNode)
+	templateName := util.GetTemplateFromNode(wf.Status.Nodes[nodeId])
 	if templateName != "" {
 		template := wf.GetTemplateByName(templateName)
 		if template == nil {
@@ -435,7 +412,7 @@ func (a *ArtifactServer) getArtifactAndDriver(ctx context.Context, nodeId, artif
 		archiveLocation = ar.ToArtifactLocation()
 	}
 
-	err = art.Relocate(archiveLocation) // if the Artifact defines the location (case 1), it will be used; otherwise whatever archiveLocation is set to
+	err := art.Relocate(archiveLocation) // if the Artifact defines the location (case 1), it will be used; otherwise whatever archiveLocation is set to
 	if err != nil {
 		return art, nil, err
 	}

@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -50,19 +49,18 @@ var _ Interface = &sso{}
 type Config = config.SSOConfig
 
 type sso struct {
-	config            *oauth2.Config
-	issuer            string
-	idTokenVerifier   *oidc.IDTokenVerifier
-	httpClient        *http.Client
-	baseHRef          string
-	secure            bool
-	privateKey        crypto.PrivateKey
-	encrypter         jose.Encrypter
-	rbacConfig        *config.RBACConfig
-	expiry            time.Duration
-	customClaimName   string
-	userInfoPath      string
-	filterGroupsRegex []*regexp.Regexp
+	config          *oauth2.Config
+	issuer          string
+	idTokenVerifier *oidc.IDTokenVerifier
+	httpClient      *http.Client
+	baseHRef        string
+	secure          bool
+	privateKey      crypto.PrivateKey
+	encrypter       jose.Encrypter
+	rbacConfig      *config.RBACConfig
+	expiry          time.Duration
+	customClaimName string
+	userInfoPath    string
 }
 
 func (s *sso) IsRBACEnabled() bool {
@@ -183,38 +181,25 @@ func newSso(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT encrpytor: %w", err)
 	}
-
-	var filterGroupsRegex []*regexp.Regexp
-	if len(c.FilterGroupsRegex) > 0 {
-		for _, regex := range c.FilterGroupsRegex {
-			compiledRegex, err := regexp.Compile(regex)
-			if err != nil {
-				return nil, fmt.Errorf("failed to compile sso.filterGroupRegex: %s %w", regex, err)
-			}
-			filterGroupsRegex = append(filterGroupsRegex, compiledRegex)
-		}
-	}
-
-	lf := log.Fields{"redirectUrl": config.RedirectURL, "issuer": c.Issuer, "issuerAlias": "DISABLED", "clientId": c.ClientID, "scopes": config.Scopes, "insecureSkipVerify": c.InsecureSkipVerify, "filterGroupsRegex": c.FilterGroupsRegex}
+	lf := log.Fields{"redirectUrl": config.RedirectURL, "issuer": c.Issuer, "issuerAlias": "DISABLED", "clientId": c.ClientID, "scopes": config.Scopes, "insecureSkipVerify": c.InsecureSkipVerify}
 	if c.IssuerAlias != "" {
 		lf["issuerAlias"] = c.IssuerAlias
 	}
 	log.WithFields(lf).Info("SSO configuration")
 
 	return &sso{
-		config:            config,
-		idTokenVerifier:   idTokenVerifier,
-		baseHRef:          baseHRef,
-		httpClient:        httpClient,
-		secure:            secure,
-		privateKey:        privateKey,
-		encrypter:         encrypter,
-		rbacConfig:        c.RBAC,
-		expiry:            c.GetSessionExpiry(),
-		customClaimName:   c.CustomGroupClaimName,
-		userInfoPath:      c.UserInfoPath,
-		issuer:            c.Issuer,
-		filterGroupsRegex: filterGroupsRegex,
+		config:          config,
+		idTokenVerifier: idTokenVerifier,
+		baseHRef:        baseHRef,
+		httpClient:      httpClient,
+		secure:          secure,
+		privateKey:      privateKey,
+		encrypter:       encrypter,
+		rbacConfig:      c.RBAC,
+		expiry:          c.GetSessionExpiry(),
+		customClaimName: c.CustomGroupClaimName,
+		userInfoPath:    c.UserInfoPath,
+		issuer:          c.Issuer,
 	}, nil
 }
 
@@ -245,7 +230,6 @@ func (s *sso) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(state)
 	http.SetCookie(w, &http.Cookie{Name: state, MaxAge: 0})
 	if err != nil {
-		log.WithError(err).Error("failed to get cookie")
 		w.WriteHeader(400)
 		return
 	}
@@ -254,28 +238,25 @@ func (s *sso) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	oauth2Context := context.WithValue(ctx, oauth2.HTTPClient, s.httpClient)
 	oauth2Token, err := s.config.Exchange(oauth2Context, r.URL.Query().Get("code"), redirectOption)
 	if err != nil {
-		log.WithError(err).Error("failed to get oauth2Token by using code from the oauth2 server")
 		w.WriteHeader(401)
 		return
 	}
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
-		log.Error("failed to extract id_token from the response")
 		w.WriteHeader(401)
 		return
 	}
 	idToken, err := s.idTokenVerifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		log.WithError(err).Error("failed to verify the id token issued")
 		w.WriteHeader(401)
 		return
 	}
 	c := &types.Claims{}
 	if err := idToken.Claims(c); err != nil {
-		log.WithError(err).Error("failed to get claims from the id token")
 		w.WriteHeader(401)
 		return
 	}
+
 	// Default to groups claim but if customClaimName is set
 	// extract groups based on that claim key
 	groups := c.Groups
@@ -285,29 +266,15 @@ func (s *sso) HandleCallback(w http.ResponseWriter, r *http.Request) {
 			log.Warn(err)
 		}
 	}
+
 	// Some SSO implementations (Okta) require a call to
 	// the OIDC user info path to get attributes like groups
 	if s.userInfoPath != "" {
-		groups, err = c.GetUserInfoGroups(s.httpClient, oauth2Token.AccessToken, s.issuer, s.userInfoPath)
+		groups, err = c.GetUserInfoGroups(oauth2Token.AccessToken, s.issuer, s.userInfoPath)
 		if err != nil {
-			log.WithError(err).Errorf("failed to get groups claim from the given userInfoPath(%s)", s.userInfoPath)
 			w.WriteHeader(401)
 			return
 		}
-	}
-
-	// only return groups that match at least one of the regexes
-	if len(s.filterGroupsRegex) > 0 {
-		var filteredGroups []string
-		for _, group := range groups {
-			for _, regex := range s.filterGroupsRegex {
-				if regex.MatchString(group) {
-					filteredGroups = append(filteredGroups, group)
-					break
-				}
-			}
-		}
-		groups = filteredGroups
 	}
 
 	argoClaims := &types.Claims{
@@ -324,9 +291,9 @@ func (s *sso) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		PreferredUsername:       c.PreferredUsername,
 		ServiceAccountNamespace: c.ServiceAccountNamespace,
 	}
+
 	raw, err := jwt.Encrypted(s.encrypter).Claims(argoClaims).CompactSerialize()
 	if err != nil {
-		log.WithError(err).Errorf("failed to encrypt and serialize the jwt token")
 		w.WriteHeader(401)
 		return
 	}

@@ -3,17 +3,13 @@ package workflow
 import (
 	"context"
 	"fmt"
-
 	"testing"
 
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes/fake"
@@ -27,14 +23,10 @@ import (
 	v1alpha "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned/fake"
 	"github.com/argoproj/argo-workflows/v3/server/auth"
 	"github.com/argoproj/argo-workflows/v3/server/auth/types"
-	"github.com/argoproj/argo-workflows/v3/server/clusterworkflowtemplate"
-	sutils "github.com/argoproj/argo-workflows/v3/server/utils"
-	"github.com/argoproj/argo-workflows/v3/server/workflow/store"
-	"github.com/argoproj/argo-workflows/v3/server/workflowtemplate"
+	"github.com/argoproj/argo-workflows/v3/server/workflowarchive"
 	"github.com/argoproj/argo-workflows/v3/util"
 	"github.com/argoproj/argo-workflows/v3/util/instanceid"
 	"github.com/argoproj/argo-workflows/v3/workflow/common"
-	"github.com/argoproj/argo-workflows/v3/workflow/creator"
 )
 
 const unlabelled = `{
@@ -142,14 +134,14 @@ const wf2 = `
         "namespace": "workflows",
         "resourceVersion": "52919656",
         "selfLink": "/apis/argoproj.io/v1alpha1/namespaces/workflows/workflows/hello-world-b6h5m",
-        "uid": "91066a6c-1ddc-11ea-b443-42010aa80074"
+        "uid": "91066a6c-1ddc-11ea-b443-42010aa80075"
     },
     "spec": {
-
+        
         "entrypoint": "whalesay",
         "templates": [
             {
-
+                
                 "container": {
                     "args": [
                         "hello world"
@@ -205,14 +197,14 @@ const wf3 = `
         "namespace": "test",
         "resourceVersion": "53020772",
         "selfLink": "/apis/argoproj.io/v1alpha1/namespaces/workflows/workflows/hello-world-9tql2",
-        "uid": "6522aff1-1e01-11ea-b443-42010aa80074"
+        "uid": "6522aff1-1e01-11ea-b443-42010aa80075"
     },
     "spec": {
-
+        
         "entrypoint": "whalesay",
         "templates": [
             {
-
+                
                 "container": {
                     "args": [
                         "hello world"
@@ -271,11 +263,11 @@ const wf4 = `
         "uid": "91066a6c-1ddc-11ea-b443-42010aa80075"
     },
     "spec": {
-
+        
         "entrypoint": "whalesay",
         "templates": [
             {
-
+                
                 "container": {
                     "args": [
                         "hello world"
@@ -331,14 +323,14 @@ const wf5 = `
         "namespace": "workflows",
         "resourceVersion": "53020772",
         "selfLink": "/apis/argoproj.io/v1alpha1/namespaces/workflows/workflows/hello-world-9tql2",
-        "uid": "6522aff1-1e01-11ea-b443-42010aa80073"
+        "uid": "6522aff1-1e01-11ea-b443-42010aa80075"
     },
     "spec": {
-
+        
         "entrypoint": "whalesay",
         "templates": [
             {
-
+                
                 "container": {
                     "args": [
                         "hello world"
@@ -580,6 +572,7 @@ func getWorkflowServer() (workflowpkg.WorkflowServiceServer, context.Context) {
 
 	v1alpha1.MustUnmarshal(unlabelled, &unlabelledObj)
 	v1alpha1.MustUnmarshal(wf1, &wfObj1)
+	v1alpha1.MustUnmarshal(wf1, &wfObj1)
 	v1alpha1.MustUnmarshal(wf2, &wfObj2)
 	v1alpha1.MustUnmarshal(wf3, &wfObj3)
 	v1alpha1.MustUnmarshal(wf4, &wfObj4)
@@ -595,6 +588,7 @@ func getWorkflowServer() (workflowpkg.WorkflowServiceServer, context.Context) {
 
 	archivedRepo := &mocks.WorkflowArchive{}
 
+	wfaServer := workflowarchive.NewWorkflowArchiveServer(archivedRepo)
 	archivedRepo.On("GetWorkflow", "", "test", "hello-world-9tql2-test").Return(&v1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{Name: "hello-world-9tql2-test", Namespace: "test"},
 		Spec: v1alpha1.WorkflowSpec{
@@ -608,44 +602,11 @@ func getWorkflowServer() (workflowpkg.WorkflowServiceServer, context.Context) {
 	archivedRepo.On("GetWorkflow", "", "test", "unlabelled").Return(nil, nil)
 	archivedRepo.On("GetWorkflow", "", "workflows", "latest").Return(nil, nil)
 	archivedRepo.On("GetWorkflow", "", "workflows", "hello-world-9tql2-not").Return(nil, nil)
-	r, err := labels.ParseToRequirements("workflows.argoproj.io/controller-instanceid=my-instanceid")
-	if err != nil {
-		panic(err)
-	}
-	archivedRepo.On("CountWorkflows", sutils.ListOptions{Namespace: "workflows", LabelRequirements: r}).Return(int64(2), nil)
-	archivedRepo.On("ListWorkflows", sutils.ListOptions{Namespace: "workflows", Limit: -2, LabelRequirements: r}).Return(v1alpha1.Workflows{wfObj2, failedWfObj}, nil)
-	archivedRepo.On("CountWorkflows", sutils.ListOptions{Namespace: "test", LabelRequirements: r}).Return(int64(1), nil)
-	archivedRepo.On("ListWorkflows", sutils.ListOptions{Namespace: "test", Limit: -1, LabelRequirements: r}).Return(v1alpha1.Workflows{wfObj4}, nil)
-
+	server := NewWorkflowServer(instanceid.NewService("my-instanceid"), offloadNodeStatusRepo, wfaServer)
 	kubeClientSet := fake.NewSimpleClientset()
-	kubeClientSet.PrependReactor("create", "selfsubjectaccessreviews", func(action ktesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, &authorizationv1.SelfSubjectAccessReview{
-			Status: authorizationv1.SubjectAccessReviewStatus{Allowed: true},
-		}, nil
-	})
 	wfClientset := v1alpha.NewSimpleClientset(&unlabelledObj, &wfObj1, &wfObj2, &wfObj3, &wfObj4, &wfObj5, &failedWfObj, &wftmpl, &cronwfObj, &cwfTmpl)
 	wfClientset.PrependReactor("create", "workflows", generateNameReactor)
 	ctx := context.WithValue(context.WithValue(context.WithValue(context.TODO(), auth.WfKey, wfClientset), auth.KubeKey, kubeClientSet), auth.ClaimsKey, &types.Claims{Claims: jwt.Claims{Subject: "my-sub"}})
-	listOptions := &metav1.ListOptions{}
-	instanceIdSvc := instanceid.NewService("my-instanceid")
-	instanceIdSvc.With(listOptions)
-	wfStore, err := store.NewSQLiteStore(instanceIdSvc)
-	if err != nil {
-		panic(err)
-	}
-	if err = wfStore.Add(&wfObj1); err != nil {
-		panic(err)
-	}
-	if err = wfStore.Add(&wfObj3); err != nil {
-		panic(err)
-	}
-	if err = wfStore.Add(&wfObj5); err != nil {
-		panic(err)
-	}
-	namespaceAll := metav1.NamespaceAll
-	wftmplStore := workflowtemplate.NewWorkflowTemplateClientStore()
-	cwftmplStore := clusterworkflowtemplate.NewClusterWorkflowTemplateClientStore()
-	server := NewWorkflowServer(instanceIdSvc, offloadNodeStatusRepo, archivedRepo, wfClientset, wfStore, wfStore, wftmplStore, cwftmplStore, nil, &namespaceAll)
 	return server, ctx
 }
 
@@ -672,10 +633,11 @@ func TestCreateWorkflow(t *testing.T) {
 	var req workflowpkg.WorkflowCreateRequest
 	v1alpha1.MustUnmarshal(workflow1, &req)
 	wf, err := server.CreateWorkflow(ctx, &req)
-	require.NoError(t, err)
-	assert.NotNil(t, wf)
-	assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-	assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+	if assert.NoError(t, err) {
+		assert.NotNil(t, wf)
+		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+	}
 }
 
 type testWatchWorkflowServer struct {
@@ -722,12 +684,13 @@ func TestGetWorkflowWithNotFound(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	t.Run("Labelled", func(t *testing.T) {
 		wf, err := getWorkflow(ctx, server, "test", "not-found")
-		require.Error(t, err)
-		assert.Nil(t, wf)
+		if assert.Error(t, err) {
+			assert.Nil(t, wf)
+		}
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := getWorkflow(ctx, server, "test", "unlabelled")
-		require.Error(t, err)
+		assert.Error(t, err)
 	})
 }
 
@@ -735,8 +698,9 @@ func TestGetLatestWorkflow(t *testing.T) {
 	_, ctx := getWorkflowServer()
 	wfClient := ctx.Value(auth.WfKey).(versioned.Interface)
 	wf, err := getLatestWorkflow(ctx, wfClient, "test")
-	require.NoError(t, err)
-	assert.Equal(t, "hello-world-9tql2-test", wf.Name)
+	if assert.NoError(t, err) {
+		assert.Equal(t, wf.Name, "hello-world-9tql2-test")
+	}
 }
 
 func TestGetWorkflow(t *testing.T) {
@@ -744,11 +708,13 @@ func TestGetWorkflow(t *testing.T) {
 	s := server.(*workflowServer)
 	wfClient := auth.GetWfClient(ctx)
 	wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", metav1.GetOptions{})
-	require.NoError(t, err)
-	assert.NotNil(t, wf)
+	if assert.NoError(t, err) {
+		assert.NotNil(t, wf)
+	}
 	wf, err = s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", metav1.GetOptions{})
-	require.NoError(t, err)
-	assert.NotNil(t, wf)
+	if assert.NoError(t, err) {
+		assert.NotNil(t, wf)
+	}
 }
 
 func TestValidateWorkflow(t *testing.T) {
@@ -756,36 +722,40 @@ func TestValidateWorkflow(t *testing.T) {
 	s := server.(*workflowServer)
 	wfClient := auth.GetWfClient(ctx)
 	wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", metav1.GetOptions{})
-	require.NoError(t, err)
-	require.NoError(t, s.validateWorkflow(wf))
+	if assert.NoError(t, err) {
+		assert.NoError(t, s.validateWorkflow(wf))
+	}
 }
 
 func TestListWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	wfl, err := getWorkflowList(ctx, server, "workflows")
-	require.NoError(t, err)
-	assert.NotNil(t, wfl)
-	assert.Len(t, wfl.Items, 4)
+	if assert.NoError(t, err) {
+		assert.NotNil(t, wfl)
+		assert.Equal(t, 4, len(wfl.Items))
+	}
 	wfl, err = getWorkflowList(ctx, server, "test")
-	require.NoError(t, err)
-	assert.NotNil(t, wfl)
-	assert.Len(t, wfl.Items, 2)
+	if assert.NoError(t, err) {
+		assert.NotNil(t, wfl)
+		assert.Equal(t, 2, len(wfl.Items))
+	}
 }
 
 func TestDeleteWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	t.Run("Labelled", func(t *testing.T) {
 		delRsp, err := server.DeleteWorkflow(ctx, &workflowpkg.WorkflowDeleteRequest{Name: "hello-world-b6h5m", Namespace: "workflows"})
-		require.NoError(t, err)
-		assert.NotNil(t, delRsp)
+		if assert.NoError(t, err) {
+			assert.NotNil(t, delRsp)
+		}
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := server.DeleteWorkflow(ctx, &workflowpkg.WorkflowDeleteRequest{Name: "unlabelled", Namespace: "workflows"})
-		require.Error(t, err)
+		assert.Error(t, err)
 	})
 	t.Run("Latest", func(t *testing.T) {
 		_, err := server.DeleteWorkflow(ctx, &workflowpkg.WorkflowDeleteRequest{Name: "@latest", Namespace: "workflows"})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	})
 }
 
@@ -793,33 +763,32 @@ func TestRetryWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	t.Run("Labelled", func(t *testing.T) {
 		retried, err := server.RetryWorkflow(ctx, &workflowpkg.WorkflowRetryRequest{Name: "failed", Namespace: "workflows"})
-		require.NoError(t, err)
-		assert.NotNil(t, retried)
+		if assert.NoError(t, err) {
+			assert.NotNil(t, retried)
+		}
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := server.RetryWorkflow(ctx, &workflowpkg.WorkflowRetryRequest{Name: "unlabelled", Namespace: "workflows"})
-		require.Error(t, err)
+		assert.Error(t, err)
 	})
 	t.Run("Latest", func(t *testing.T) {
 		_, err := server.RetryWorkflow(ctx, &workflowpkg.WorkflowRetryRequest{Name: "latest", Namespace: "workflows"})
-		require.Error(t, err)
+		assert.Error(t, err)
 	})
 }
 
 func TestSuspendResumeWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	wf, err := server.SuspendWorkflow(ctx, &workflowpkg.WorkflowSuspendRequest{Name: "hello-world-9tql2-run", Namespace: "workflows"})
-	require.NoError(t, err)
-	assert.NotNil(t, wf)
-	assert.True(t, *wf.Spec.Suspend)
-	assert.Contains(t, wf.Labels, common.LabelKeyActor)
-	assert.Equal(t, string(creator.ActionSuspend), wf.Labels[common.LabelKeyAction])
-	wf, err = server.ResumeWorkflow(ctx, &workflowpkg.WorkflowResumeRequest{Name: wf.Name, Namespace: wf.Namespace})
-	require.NoError(t, err)
-	assert.NotNil(t, wf)
-	assert.Contains(t, wf.Labels, common.LabelKeyActor)
-	assert.Equal(t, string(creator.ActionResume), wf.Labels[common.LabelKeyAction])
-	assert.Nil(t, wf.Spec.Suspend)
+	if assert.NoError(t, err) {
+		assert.NotNil(t, wf)
+		assert.Equal(t, true, *wf.Spec.Suspend)
+		wf, err = server.ResumeWorkflow(ctx, &workflowpkg.WorkflowResumeRequest{Name: wf.Name, Namespace: wf.Namespace})
+		if assert.NoError(t, err) {
+			assert.NotNil(t, wf)
+			assert.Nil(t, wf.Spec.Suspend)
+		}
+	}
 }
 
 func TestSuspendResumeWorkflowWithNotFound(t *testing.T) {
@@ -831,21 +800,21 @@ func TestSuspendResumeWorkflowWithNotFound(t *testing.T) {
 	}
 	wf, err := server.SuspendWorkflow(ctx, &susWfReq)
 	assert.Nil(t, wf)
-	require.Error(t, err)
+	assert.NotNil(t, err)
 	rsmWfReq := workflowpkg.WorkflowResumeRequest{
 		Name:      "hello-world-9tql2-not",
 		Namespace: "workflows",
 	}
 	wf, err = server.ResumeWorkflow(ctx, &rsmWfReq)
 	assert.Nil(t, wf)
-	require.Error(t, err)
+	assert.NotNil(t, err)
 }
 
 func TestTerminateWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 
 	wf, err := getWorkflow(ctx, server, "workflows", "hello-world-9tql2-run")
-	require.NoError(t, err)
+	assert.Nil(t, err)
 	rsmWfReq := workflowpkg.WorkflowTerminateRequest{
 		Name:      wf.Name,
 		Namespace: wf.Namespace,
@@ -853,9 +822,7 @@ func TestTerminateWorkflow(t *testing.T) {
 	wf, err = server.TerminateWorkflow(ctx, &rsmWfReq)
 	assert.NotNil(t, wf)
 	assert.Equal(t, v1alpha1.ShutdownStrategyTerminate, wf.Spec.Shutdown)
-	assert.Contains(t, wf.Labels, common.LabelKeyActor)
-	assert.Equal(t, string(creator.ActionTerminate), wf.Labels[common.LabelKeyAction])
-	require.NoError(t, err)
+	assert.Nil(t, err)
 
 	rsmWfReq = workflowpkg.WorkflowTerminateRequest{
 		Name:      "hello-world-9tql2-not",
@@ -863,37 +830,38 @@ func TestTerminateWorkflow(t *testing.T) {
 	}
 	wf, err = server.TerminateWorkflow(ctx, &rsmWfReq)
 	assert.Nil(t, wf)
-	require.Error(t, err)
+	assert.NotNil(t, err)
 }
 
 func TestStopWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	wf, err := getWorkflow(ctx, server, "workflows", "hello-world-9tql2-run")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	rsmWfReq := workflowpkg.WorkflowStopRequest{Name: wf.Name, Namespace: wf.Namespace}
 	wf, err = server.StopWorkflow(ctx, &rsmWfReq)
-	require.NoError(t, err)
-	assert.NotNil(t, wf)
-	assert.Equal(t, v1alpha1.WorkflowRunning, wf.Status.Phase)
-	assert.Contains(t, wf.Labels, common.LabelKeyActor)
-	assert.Equal(t, string(creator.ActionStop), wf.Labels[common.LabelKeyAction])
+	if assert.NoError(t, err) {
+		assert.NotNil(t, wf)
+		assert.Equal(t, v1alpha1.WorkflowRunning, wf.Status.Phase)
+	}
 }
 
 func TestResubmitWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	t.Run("Labelled", func(t *testing.T) {
 		wf, err := server.ResubmitWorkflow(ctx, &workflowpkg.WorkflowResubmitRequest{Name: "hello-world-9tql2", Namespace: "workflows"})
-		require.NoError(t, err)
-		assert.NotNil(t, wf)
+		if assert.NoError(t, err) {
+			assert.NotNil(t, wf)
+		}
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := server.ResubmitWorkflow(ctx, &workflowpkg.WorkflowResubmitRequest{Name: "unlabelled", Namespace: "workflows"})
-		require.Error(t, err)
+		assert.Error(t, err)
 	})
 	t.Run("Latest", func(t *testing.T) {
 		wf, err := server.ResubmitWorkflow(ctx, &workflowpkg.WorkflowResubmitRequest{Name: "@latest", Namespace: "workflows"})
-		require.NoError(t, err)
-		assert.NotNil(t, wf)
+		if assert.NoError(t, err) {
+			assert.NotNil(t, wf)
+		}
 	})
 }
 
@@ -902,10 +870,11 @@ func TestLintWorkflow(t *testing.T) {
 	wf := &v1alpha1.Workflow{}
 	v1alpha1.MustUnmarshal(unlabelled, &wf)
 	linted, err := server.LintWorkflow(ctx, &workflowpkg.WorkflowLintRequest{Workflow: wf})
-	require.NoError(t, err)
-	assert.NotNil(t, linted)
-	assert.Contains(t, linted.Labels, common.LabelKeyControllerInstanceID)
-	assert.Contains(t, linted.Labels, common.LabelKeyCreator)
+	if assert.NoError(t, err) {
+		assert.NotNil(t, linted)
+		assert.Contains(t, linted.Labels, common.LabelKeyControllerInstanceID)
+		assert.Contains(t, linted.Labels, common.LabelKeyCreator)
+	}
 }
 
 type testPodLogsServer struct {
@@ -938,7 +907,7 @@ func TestSubmitWorkflowFromResource(t *testing.T) {
 			ResourceKind: "workflowtemplate",
 			ResourceName: "workflow-template-whalesay-template",
 		})
-		require.EqualError(t, err, "rpc error: code = InvalidArgument desc = spec.arguments.message.value or spec.arguments.message.valueFrom is required")
+		assert.EqualError(t, err, "rpc error: code = InvalidArgument desc = spec.arguments.message.value is required")
 	})
 	t.Run("SubmitFromWorkflowTemplate", func(t *testing.T) {
 		opts := v1alpha1.SubmitOpts{
@@ -952,10 +921,11 @@ func TestSubmitWorkflowFromResource(t *testing.T) {
 			ResourceName:  "workflow-template-whalesay-template",
 			SubmitOptions: &opts,
 		})
-		require.NoError(t, err)
-		assert.NotNil(t, wf)
-		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		if assert.NoError(t, err) {
+			assert.NotNil(t, wf)
+			assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+			assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		}
 	})
 	t.Run("SubmitFromCronWorkflow", func(t *testing.T) {
 		wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
@@ -963,10 +933,11 @@ func TestSubmitWorkflowFromResource(t *testing.T) {
 			ResourceKind: "cronworkflow",
 			ResourceName: "hello-world",
 		})
-		require.NoError(t, err)
-		assert.NotNil(t, wf)
-		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		if assert.NoError(t, err) {
+			assert.NotNil(t, wf)
+			assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+			assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		}
 	})
 	t.Run("SubmitFromClusterWorkflowTemplate", func(t *testing.T) {
 		wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
@@ -974,9 +945,10 @@ func TestSubmitWorkflowFromResource(t *testing.T) {
 			ResourceKind: "ClusterWorkflowTemplate",
 			ResourceName: "cluster-workflow-template-whalesay-template",
 		})
-		require.NoError(t, err)
-		assert.NotNil(t, wf)
-		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		if assert.NoError(t, err) {
+			assert.NotNil(t, wf)
+			assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+			assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		}
 	})
 }

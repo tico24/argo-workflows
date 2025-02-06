@@ -6,7 +6,7 @@ import (
 
 // +kubebuilder:validation:Type=object
 type Object struct {
-	Value json.RawMessage `json:"-" protobuf:"bytes,1,opt,name=value,casttype=encoding/json.RawMessage"`
+	Value json.RawMessage `json:"-"`
 }
 
 func (i *Object) UnmarshalJSON(value []byte) error {

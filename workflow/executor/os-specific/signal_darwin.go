@@ -8,10 +8,6 @@ import (
 	"github.com/argoproj/argo-workflows/v3/util/errors"
 )
 
-var (
-	Term = syscall.SIGTERM
-)
-
 func CanIgnoreSignal(s os.Signal) bool {
 	return s == syscall.SIGCHLD || s == syscall.SIGURG
 }

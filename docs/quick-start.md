@@ -1,89 +1,109 @@
 # Quick Start
 
-To try out Argo Workflows, you can install it and run example workflows.
+To see how Argo Workflows work, you can install it and run examples of simple workflows.
 
-Alternatively, if you don't want to set up a Kubernetes cluster, try the [Killercoda course](training.md#hands-on).
-
-## Prerequisites
-
-Before installing Argo, you need a Kubernetes cluster and `kubectl` configured to access it.
-For quick testing, you can use a local cluster with:
+Before you start you need a Kubernetes cluster and `kubectl` set up to be able to access that cluster. For the purposes of getting up and running, a local cluster is fine. You could consider the following local Kubernetes cluster options:
 
 * [minikube](https://minikube.sigs.k8s.io/docs/)
 * [kind](https://kind.sigs.k8s.io/)
 * [k3s](https://k3s.io/) or [k3d](https://k3d.io/)
 * [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-!!! Warning "Development vs. Production"
-    These instructions are intended to help you get started quickly. They are not suitable for production.
-    For production installs, please refer to [the installation documentation](installation.md).
+Alternatively, if you want to try out Argo Workflows and don't want to set up a Kubernetes cluster, try the [Killercoda course](training.md#hands-on).
+
+⚠️ These instructions are intended to help you get started quickly. They are not suitable in production. For production installs, please refer to [the installation documentation](installation.md) ⚠️
 
 ## Install Argo Workflows
 
-First, specify the version you want to install in an environment variable.
-Modify the command below:
+To install Argo Workflows, navigate to the [releases page](https://github.com/argoproj/argo-workflows/releases/latest) and find the release you wish to use (the latest full release is preferred).
 
-```bash
-ARGO_WORKFLOWS_VERSION="vX.Y.Z"
-```
+Scroll down to the `Controller and Server` section and execute the `kubectl` commands.
 
-Then, copy the commands below to apply the quick-start manifest:
+Below is an example of the install commands, ensure that you update the command to install the correct version number:
 
-```bash
+```yaml
 kubectl create namespace argo
-kubectl apply -n argo -f "https://github.com/argoproj/argo-workflows/releases/download/${ARGO_WORKFLOWS_VERSION}/quick-start-minimal.yaml"
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v<<ARGO_WORKFLOWS_VERSION>>/install.yaml
 ```
+
+### Patch argo-server authentication
+
+The argo-server (and thus the UI) defaults to client authentication, which requires clients to provide their Kubernetes bearer token in order to authenticate. For more information, refer to the [Argo Server Auth Mode documentation](argo-server-auth-mode.md). We will switch the authentication mode to `server` so that we can bypass the UI login for now:
+
+```bash
+kubectl patch deployment \
+  argo-server \
+  --namespace argo \
+  --type='json' \
+  -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": [
+  "server",
+  "--auth-mode=server"
+]}]'
+
+```
+
+### Port-forward the UI
+
+Open a port-forward so you can access the UI:
+
+```bash
+kubectl -n argo port-forward deployment/argo-server 2746:2746
+```
+
+This will serve the UI on <https://localhost:2746>. Due to the self-signed certificate, you will receive a TLS error which you will need to manually approve.
+
+> Pay close attention to the URI. It uses `https` and not `http`. Navigating to `http://localhost:2746` result in server-side error that breaks the port-forwarding.
 
 ## Install the Argo Workflows CLI
 
-You can more easily interact with Argo Workflows with the [Argo CLI](walk-through/argo-cli.md).
+Next, Download the latest Argo CLI from the same [releases page](https://github.com/argoproj/argo-workflows/releases/latest).
 
-## Submit an example workflow
+## Submitting an example workflow
 
-### Submit via the CLI
+### Submit an example workflow (CLI)
 
 ```bash
-argo submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/main/examples/hello-world.yaml
+argo submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
 ```
 
-The `--watch` flag watches the workflow as it runs and reports whether it succeeds or not.
-When the workflow completes, the watch stops.
+The `--watch` flag used above will allow you to observe the workflow as it runs and the status of whether it succeeds.
+When the workflow completes, the watch on the workflow will stop.
 
-You can list all submitted Workflows by running the command below:
+You can list all the Workflows you have submitted by running the command below:
 
 ```bash
 argo list -n argo
 ```
 
-The Workflow name has a `hello-world-` prefix followed by random characters.
-These characters give Workflows unique names to help identify specific runs of a Workflow.
-If you submit this Workflow again, the next run will have different characters.
+You will notice the Workflow name has a `hello-world-` prefix followed by random characters. These characters are used
+to give Workflows unique names to help identify specific runs of a Workflow. If you submitted this Workflow again,
+the next Workflow run would have a different name.
 
-You can review the details of a Workflow run using the `argo get` command.
-The output for the command below will be the same as the information shown when you submitted the Workflow:
+Using the `argo get` command, you can always review details of a Workflow run. The output for the command below will
+be the same as the information shown as when you submitted the Workflow:
 
 ```bash
 argo get -n argo @latest
 ```
 
-The `@latest` argument is a shortcut to view the latest Workflow run.
+The `@latest` argument to the CLI is a short cut to view the latest Workflow run that was executed.
 
-You can observe the logs of the Workflow run with the following command:
+You can also observe the logs of the Workflow run by running the following:
 
 ```bash
 argo logs -n argo @latest
 ```
 
-### Submit via the UI
+### Submit an example workflow (GUI)
 
-1. Forward the Server's port to access the UI:
+* Open a port-forward so you can access the UI:
 
-    ```bash
-    kubectl -n argo port-forward service/argo-server 2746:2746
-    ```
+```bash
+kubectl -n argo port-forward deployment/argo-server 2746:2746
+```
 
-1. Navigate your browser to <https://localhost:2746>.
-    * **Note**: The URL uses `https` and not `http`. Navigating to `http` will result in a server-side error.
-    * Due to the self-signed certificate, you will receive a TLS error which you will need to manually approve.
-1. Click `+ Submit New Workflow` and then `Edit using full workflow options`
-1. You can find an example workflow already in the text field. Press `+ Create` to start the workflow.
+* Navigate your browser to <https://localhost:2746>.
+
+* Click `+ Submit New Workflow` and then `Edit using full workflow options`
+
+* You can find an example workflow already in the text field. Press `+ Create` to start the workflow.

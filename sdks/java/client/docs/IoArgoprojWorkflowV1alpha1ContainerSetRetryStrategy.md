@@ -2,7 +2,6 @@
 
 # IoArgoprojWorkflowV1alpha1ContainerSetRetryStrategy
 
-ContainerSetRetryStrategy provides controls on how to retry a container set
 
 ## Properties
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"strings"
 
 	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/argoproj/argo-workflows/v3/workflow/common"
@@ -12,7 +13,6 @@ import (
 const (
 	maxK8sResourceNameLength = 253
 	k8sNamingHashLength      = 10
-	maxPrefixLength          = maxK8sResourceNameLength - k8sNamingHashLength
 )
 
 // PodNameVersion stores which type of pod names should be used.
@@ -57,8 +57,8 @@ func GeneratePodName(workflowName, nodeName, templateName, nodeID string, versio
 	}
 
 	prefix := workflowName
-	if templateName != "" {
-		prefix = fmt.Sprintf("%s-%s", prefix, templateName)
+	if !strings.Contains(nodeName, ".inline") {
+		prefix = fmt.Sprintf("%s-%s", workflowName, templateName)
 	}
 	prefix = ensurePodNamePrefixLength(prefix)
 
@@ -70,6 +70,8 @@ func GeneratePodName(workflowName, nodeName, templateName, nodeID string, versio
 }
 
 func ensurePodNamePrefixLength(prefix string) string {
+	maxPrefixLength := maxK8sResourceNameLength - k8sNamingHashLength
+
 	if len(prefix) > maxPrefixLength-1 {
 		return prefix[0 : maxPrefixLength-1]
 	}
