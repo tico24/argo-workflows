@@ -9,6 +9,7 @@ import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {uiUrl} from '../shared/base';
 import {ErrorNotice} from '../shared/components/error-notice';
 import {InfoIcon} from '../shared/components/fa-icons';
+import {FiltersCollapseToggle} from '../shared/components/filters-collapse-toggle';
 import {ZeroState} from '../shared/components/zero-state';
 import {Context} from '../shared/context';
 import {Footnote} from '../shared/footnote';
@@ -16,6 +17,7 @@ import {historyUrl} from '../shared/history';
 import * as nsUtils from '../shared/namespaces';
 import {services} from '../shared/services';
 import {useCollectEvent} from '../shared/use-collect-event';
+import {useFiltersCollapsed} from '../shared/use-filters-collapsed';
 import {ReportFilters} from './reports-filters';
 import {workflowsToChartData} from './workflows-to-chart-data';
 
@@ -39,6 +41,7 @@ export function Reports() {
 
     // state for URL, query, and label parameters
     const isFirstRender = useRef(true);
+    const [filtersCollapsed, toggleFiltersCollapsed] = useFiltersCollapsed();
     const [namespace, setNamespace] = useState<string>(nsUtils.getNamespace(routeParams.namespace) || '');
     const [labels, setLabels] = useState((queryParams.get('labels') || '').split(',').filter(v => v !== ''));
     // internal state
@@ -95,8 +98,9 @@ export function Reports() {
                     {title: namespace, path: uiUrl('reports/' + namespace)}
                 ]
             }}>
-            <div className='row'>
+            <div className={`row wf-list-layout ${filtersCollapsed ? 'wf-list-layout--collapsed' : ''}`}>
                 <div className='columns small-12 xlarge-2'>
+                    <FiltersCollapseToggle collapsed={false} onToggle={toggleFiltersCollapsed} />
                     <ReportFilters namespace={namespace} labels={labels} onChange={onChange} />
                 </div>
                 <div className='columns small-12 xlarge-10'>
@@ -146,6 +150,7 @@ export function Reports() {
                         </>
                     )}
                 </div>
+                {filtersCollapsed && <FiltersCollapseToggle collapsed={true} onToggle={toggleFiltersCollapsed} />}
             </div>
         </Page>
     );
