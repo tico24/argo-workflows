@@ -7,15 +7,11 @@
 .log-box {
   min-height: 500px;
   max-height: 800px;
-  padding: 10px;
   margin: 10px;
-  background-color: white;
+  // Console surface treatment (padding / background / border / radius) is owned
+  // by _modern-logs.scss so the Logs view reads as a deliberate terminal.
 }
 
-.log-menu {
-  display: flex;
-  column-gap: 12px;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-}
+// The .log-menu toolbar layout + control styling is owned by _modern-logs.scss
+// so the inputs, labels and the "Log Fields" action share one design language
+// and one baseline (loaded after argo-ui so it wins by source order).

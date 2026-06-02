@@ -1,0 +1,136 @@
+// _modern-status-pill.scss — UI modernization (Stage 2): readable LABELLED
+// status pill for the workflow LIST.
+//
+// The workflow-list status cell historically showed a bare phase GLYPH (a small
+// FontAwesome icon) with no word — the single most "old admin UI" element on the
+// page. Stage 2 wraps that glyph (markup-only, no logic/data change) in a
+// `.wf-phase-pill` span that also carries the phase WORD already present in
+// props (Succeeded / Failed / Running / Pending / …). This partial paints that
+// span as a tinted-background rounded pill with AA-contrast text in the
+// canonical phase hue, mirroring the proven recipe in _modern-cards.scss
+// (status-badge) and reusing the AA-verified --awf-status-*-text tokens.
+//
+// Loaded AFTER the other modern-* partials (see app-restyle.scss) so equal-
+// specificity geometry wins by source order. Paint + within-component geometry
+// only — no markup is required beyond the one surgical span already added.
+//
+// Sass hygiene: plain CSS + var() tokens. No @import, no darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// Relax the status COLUMN so the phase word never clips. The app-local rule
+// caps `.workflows-list__status { max-width: 80px }` (workflows-list.scss:21) —
+// fine for a bare icon + checkbox, but far too tight once the full phase WORD is
+// shown. The status column is now a `small-2` grid cell (see workflows-row.tsx
+// and workflows-list.tsx; the sibling block dropped from small-11 to small-10 so
+// the outer row still sums to 12 and the header + body left-edges stay aligned).
+// Lift the legacy 80px cap so the cell can use its full small-2 track, and set a
+// comfortable floor that fits the widest phase word ("Succeeded") plus the
+// checkbox even on narrow viewports. Mirrors the status-badge width:auto /
+// min-width approach in _modern-cards.scss.
+// -----------------------------------------------------------------------------
+.workflows-list__status {
+    max-width: none !important;
+    // checkbox (~16px) + gap (8px) + pill ("Succeeded": ~14px icon + ~70px text
+    // + 4px inner gap + 24px h-padding ≈ 112px) ≈ 140px. Floor it so the pill
+    // never clips, but tie the floor to the viewport with clamp() so a fixed
+    // 150px px-floor can't exceed the small-2 (~16.6%) track on narrow viewports
+    // and squeeze the adjacent Name/Message cells. At >=940px the upper bound
+    // (150px) holds exactly as before; below that the floor relaxes toward 110px
+    // (still wide enough for the widest "Succeeded" pill + checkbox) instead of
+    // overflowing its track. Behaviour-preserving at default desktop widths.
+    min-width: clamp(110px, 16vw, 150px);
+    // Keep checkbox + pill on one calm baseline with an 8px-grid gap.
+    gap: var(--awf-space-2, 8px);
+    overflow: visible;
+}
+
+// The header row reuses the same `.workflows-list__status` class (now a small-2
+// cell with no pill) — the relaxed cap above applies to both header and body, so
+// the grid stays aligned. No extra rule needed.
+
+// -----------------------------------------------------------------------------
+// The pill itself. Tinted-alpha background + AA status text + a comfortable,
+// scannable shape. The leading PhaseIcon glyph keeps its OWN saturated canonical
+// hue (argo-ui's .status-icon--* set the glyph colour directly — see
+// _a11y-paint.scss:96), so the saturated glyph reads as a dot of true phase
+// colour next to the AA-contrast phase WORD: one coherent status token.
+// -----------------------------------------------------------------------------
+.wf-phase-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--awf-space-1, 4px);
+    min-width: 0;
+    padding: var(--awf-space-1, 4px) var(--awf-space-3, 12px);
+    border-radius: var(--awf-radius-pill, 999px);
+    font-size: var(--awf-font-size-sm, 13px);
+    font-weight: var(--awf-weight-medium, 500);
+    line-height: var(--awf-line-snug, 1.4);
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+
+    // GUARANTEED RIGHT GUTTER (D2 overlap). The status cell sits directly beside
+    // the Name link with no intrinsic separation, so on narrow tracks the long
+    // phase words ("Succeeded"/"Running") push the pill's right edge flush
+    // against the next cell's text. A right margin on the pill itself makes it
+    // impossible for the pill to ever touch a neighbouring cell, on ANY table
+    // that renders it (workflows-list, archived, workflow-details-list — all use
+    // the shared WorkflowsRow). The cron list renders no pill, so it is unaffected.
+    margin-right: var(--awf-space-2, 8px);
+
+    // Default / Unknown / Omitted / '' phase: calm neutral chip.
+    background-color: rgba(109, 127, 139, 0.14);
+    color: var(--awf-status-pending-text, #566a78);
+
+    // GLYPH CENTRING (D2 off-centre). The bare FontAwesome glyph rides the row's
+    // tall line-box by default; the pill's `inline-flex` + `align-items:center`
+    // centres the glyph BOX, but the glyph's own intrinsic line-height/baseline
+    // still let it ride high — most visibly on the Running/Pending spinners whose
+    // rotation rides the cap line. Make the icon its OWN centred inline-flex box
+    // with a line-height tied to the text line-box so its optical centre lines up
+    // with the word's x-height. We deliberately keep `transform-origin` untouched
+    // (no `display` change that would move it) so the FontAwesome spin keeps
+    // rotating about the glyph centre and never wobbles.
+    .fa,
+    i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        font-size: 0.95em;
+        // Square the glyph box to its own font-size so centring is symmetric and
+        // the spinner rotates inside a centred box rather than a tall line-box.
+        width: 1em;
+        height: 1em;
+        text-align: center;
+        vertical-align: middle;
+    }
+}
+
+// Per-phase tinted-alpha background + AA phase-word text (the canonical hue at
+// AA contrast). The glyph keeps its own saturated argo-ui hue. Backgrounds match
+// the status-badge recipe in _modern-cards.scss for one consistent status
+// language across the UI.
+.wf-phase-pill--Succeeded {
+    background-color: rgba(24, 190, 148, 0.16);
+    color: var(--awf-status-succeeded-text, #0a7257);
+}
+
+.wf-phase-pill--Running {
+    background-color: rgba(13, 173, 234, 0.16);
+    color: var(--awf-status-running-text, #0a7299);
+}
+
+.wf-phase-pill--Pending {
+    background-color: rgba(244, 192, 48, 0.18);
+    color: var(--awf-status-warning-text, #806100);
+}
+
+.wf-phase-pill--Failed,
+.wf-phase-pill--Error {
+    background-color: rgba(233, 109, 118, 0.18);
+    color: var(--awf-status-failed-text, #be3d47);
+}
+
+// Omitted / Unknown / empty phase keep the neutral default declared on the base
+// `.wf-phase-pill` block above — no per-phase override needed.

@@ -1,28 +1,38 @@
 @import 'node_modules/argo-ui/src/styles/config';
 
-.wf-filters-container {
-    overflow: visible;
-    position: relative;
-    border-radius: 5px;
-    box-shadow: 1px 1px 3px #8fa4b1;
-    padding: 0 1em 0.75em 1em;
-    margin: 12px 0;
-    background-color: white;
-}
+// Workflow FILTER panel — restyled toward Argo CD's filters sidebar (Loop 9,
+// Stage A.2). Grounded in argo-cd ui/src/app/applications/components/filter/
+// filter.scss + filters-group (a cohesive FILTERS group of evenly-spaced labeled
+// blocks on one surface). The field LABEL treatment (uppercase 12px muted
+// eyebrow) is owned by _modern-controls.scss and intentionally kept here.
+//
+// The card SURFACE (overflow / position / margin / background / border / radius /
+// shadow / padding) AND the cohesive "Filters" group header are the SHARED
+// `.wf-filters-container` definition in _modern-cards.scss, used by ALL FOUR
+// filter panels so they cannot drift.
+//
+// Loop 11 (item 2): the "Filters" group header was promoted to that shared base
+// so the workflows / cron / templates / reports sidebars all get the identical
+// bordered grouped-card treatment. The workflows-list-only `--workflows::before`
+// header that used to live here was the source of the cross-page inconsistency
+// and has been removed. Inputs/checkboxes are untouched.
 
 .wf-filters-container p {
     margin: 0;
-    margin-top: 1em;
-    color: #6d7f8b;
-    text-transform: uppercase;
+    color: var(--awf-muted-aa, #556472);
+    // Sentence case, no tracking: the uppercase + tracking eyebrow read as
+    // gappy/cheap. The strict label typography is owned by _modern-controls.scss.
+    text-transform: none;
+    letter-spacing: normal;
 }
+
+// (The first-field-snug-under-header trim now lives in the shared
+// _modern-cards.scss `.wf-filters-container` so all four panels share it.)
 
 .wf-filters-container__title {
     position: relative;
     width: 100%;
     max-width: 100%;
-    padding: 8px 0;
-    font-size: 15px;
     background-color: transparent;
     border: 0;
 }
@@ -36,4 +46,22 @@
 
 #top-bar__filter-list {
     column-count: 1;
+}
+
+// The managed-namespace VALUE (e.g. "argo") renders as plain text directly under
+// the "Namespace" label. It must read as a calm FIELD VALUE matching the rest of
+// the sidebar's control text (Name Contains / Labels inputs), not stand out. The
+// control-text rule in _modern-controls.scss (.argo-field/.select__value/…) does
+// not reach this bare span, so without this it inherited a larger/divergent size.
+// Pin it to the shared body font stack, the 14px control text size, normal weight
+// and the primary field-text colour — kept indented 8px under its label. Styling
+// only.
+.wf-filters-container .namespace-filter__value {
+    display: block;
+    padding-left: var(--awf-space-2, 8px);
+    font-family: inherit;
+    font-size: var(--awf-font-size-body, 14px);
+    font-weight: var(--awf-weight-regular, 400);
+    line-height: 1.2;
+    color: var(--awf-text, #495763);
 }

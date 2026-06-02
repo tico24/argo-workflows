@@ -1025,14 +1025,14 @@ export function getColorForNodePhase(p: NodePhase) {
     switch (p) {
         case NODE_PHASE.ERROR:
         case NODE_PHASE.FAILED:
-            return '#E96D76';
+            return '#be3d47';
         case NODE_PHASE.PENDING:
         case NODE_PHASE.RUNNING:
-            return '#0DADEA';
+            return '#0a7299';
         case NODE_PHASE.SUCCEEDED:
-            return '#18BE94';
+            return '#0a7257';
         default:
-            return '#6D7F8B';
+            return '#6d7f8b';
     }
 }
 

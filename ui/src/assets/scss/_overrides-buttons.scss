@@ -1,0 +1,9 @@
+// Cascade overrides: buttons.
+//
+// SUPERSEDED: the full button modernization (de-pill, solid-teal primary, ghost
+// secondary, focus rings, sizing) now lives in `_modern-buttons.scss`, which is
+// @use'd from app-restyle.scss AFTER this file so it wins by source order.
+//
+// This file intentionally declares no rules; it is kept so the existing
+// `@use 'overrides-buttons'` in app-restyle.scss remains valid and the cascade
+// order documented there is unchanged. See _modern-buttons.scss for the styling.

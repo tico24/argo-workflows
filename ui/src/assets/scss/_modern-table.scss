@@ -1,0 +1,198 @@
+// _modern-table.scss — UI modernization (Stage 2): headline-table refinements
+// for the workflow LIST that build ON the Stage-1 rhythm (row gap, cell padding,
+// taller line) and the Stage-1 type scale (muted meta columns) — NOT a redo.
+//
+// Stage 1 already opened the row vertical rhythm (_modern-spacing.scss) and
+// receded the timestamp/meta columns + promoted the NAME (_modern-type.scss).
+// Stage 2 adds the remaining "modern dashboard" table polish:
+//   1. a quiet HEADER band (the column-header row reads as a calm label strip
+//      sitting just above the cards, separated by a hairline, not a heavy bar);
+//   2. comfortable per-CELL vertical padding so multi-line NAME / MESSAGE wrap
+//      without crowding the row edges;
+//   3. recede the remaining secondary columns (duration / progress) to the same
+//      muted meta treatment the timestamps already use, so NAME + STATUS lead.
+// Hover / selected / radius / shadow are already handled in _modern-surfaces.scss
+// and are intentionally NOT repeated here.
+//
+// Loaded after the other modern-* partials so equal-specificity geometry wins by
+// source order. Paint + within-component geometry only; no markup change.
+//
+// Sass hygiene: plain CSS + var() tokens. No @import, no darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// QUIET HEADER BAND. The column-header row (`.argo-table-list__head`) is a label
+// strip, not a card: drop any inherited card finish, sit it flush above the rows
+// with comfortable side padding that lines up with the row cells, and rest it on
+// a single hairline so the eye reads "labels, then cards" with no heavy chrome.
+// (Type — size/weight/sentence-case/tracking/colour — is set in _modern-type.)
+// -----------------------------------------------------------------------------
+.argo-table-list__head {
+    background: transparent;
+    box-shadow: none;
+    border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+    padding-bottom: var(--awf-space-2, 8px);
+    line-height: var(--awf-line-snug, 1.4);
+}
+
+// -----------------------------------------------------------------------------
+// HEADER LABELS ON ONE LINE (D3). Root cause (argo-ui table-list.scss): the
+// `white-space:nowrap; overflow:hidden; text-overflow:ellipsis` clamp is applied
+// ONLY to the DATA rows (`.argo-table-list__row .columns`), never to the header
+// cells — so a header label whose text + inline TimestampSwitch toggle exceeds
+// its narrow `small-1` track (1/12 ≈ 8.3%) is free to wrap to two lines. That is
+// exactly the "Started"/"Finished"/"Namespace" cluster the user sees wrapping.
+//
+// Fix: give the header cells the SAME single-line clamp the data cells already
+// have. Each label (incl. its inline clock <TimestampSwitch> anchor, which is an
+// inline element so it sits ON the same line under nowrap) now stays on ONE line.
+// `min-width: 0` lets the flex/grid cell actually shrink so ellipsis can engage
+// instead of forcing a wrap, and the clamp keeps the header left-edges aligned
+// with the nowrap data cells below. Paint/layout-within-component only; no markup.
+// -----------------------------------------------------------------------------
+.argo-table-list__head .columns {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+// -----------------------------------------------------------------------------
+// COLUMN WIDTHS (Loop 10, item 1 — ROOT-CAUSE CORRECTED). The workflow-list head
+// + every data row is a single Foundation 12-unit grid:
+//   Name(2) Namespace(1) Started(1) Finished(1) Duration(1) Progress(1)
+//   Message(2) Details(1) Archived(1) + dynamic custom column(s)(1 each)
+// The fixed columns already sum to exactly 12 units, so at their natural
+// percentage widths the whole header — and the matching data row — lays out on
+// ONE line.
+//
+// The earlier loops tried to widen the meta tracks with `min-width: 9.5em/10em`
+// to stop "Finished"+clock ellipsing. Measured on the live page that backfired:
+// 10 cells × ~104–110px min-width = ~1152px, but the `.row.small-10` container
+// is only ~935px wide. Foundation columns are FLOATS, so once the min-widths
+// overflow the container the row WRAPS — Details/Archived/custom drop onto a
+// second line (header AND rows together). That two-line stack, plus the dynamic
+// "Workflow Completed" custom label overflowing its own forced-narrow track, is
+// exactly the truncation/stacking the critic sees.
+//
+// Fix: DROP the min-width overrides entirely and let each cell use its natural
+// Foundation track. The single 12-unit row then fits on one line with no wrap.
+// Keep the meta horizontal padding trimmed to 6px (from Foundation's 15px
+// gutter) so each label has the most text room inside its natural track; with
+// the 11px head type (_modern-type) the static labels ("Namespace", "Finished "
+// + inline clock, etc.) clear their tracks on one line. The nowrap+ellipsis
+// clamp above stays as a safety net for any over-long dynamic custom label, so
+// it ellipsizes gracefully INSTEAD of wrapping the whole grid to two lines.
+// Applied to head AND row in lockstep so columns stay aligned; no markup/logic
+// and no column-span change.
+// -----------------------------------------------------------------------------
+.argo-table-list__head .columns.small-1,
+.argo-table-list__row .columns.small-1,
+.argo-table-list__head .columns.small-2,
+.argo-table-list__row .columns.small-2 {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+// -----------------------------------------------------------------------------
+// DYNAMIC CUSTOM COLUMN headers (Loop 11, item 1). The 11 STATIC cells sum to
+// 11/12 = 91.667% and lay out on one line. A user-defined custom column
+// (`models.Column`, rendered with the extra `workflows-list__custom-col` class
+// on BOTH head and row — className-only edit) is forced into a `small-1` track
+// = 8.333% ≈ 64px text room; a label like "Workflow Completed"/"Workflow Link"
+// needs ~120–135px at the 11px head type, so the nowrap+ellipsis clamp above
+// clips it to "Workflow…". That is the LAST-header truncation the critic sees.
+//
+// Fix (styling only, head+row in lockstep, NO column-span change): let the
+// custom cell size to its CONTENT instead of the rigid 1/12 track. `flex-basis:
+// auto` + `max-width: none` releases the Foundation `flex: 0 0 8.333%` cap so
+// the cell is exactly as wide as its label/value (still `nowrap`, so it stays
+// on one line and the header reads in full — no ellipsis). The 11 static cells
+// keep their tracks (Σ = 91.667% ≤ 100%), so ONE content-sized custom cell uses
+// the remaining ~8.3% slack and the single grid row stays on one line with no
+// wrap. (Two-plus custom columns can exceed 100% and trigger the pre-existing
+// horizontal scroll, which is acceptable.) Applied to head AND row together so
+// the column stays aligned; no markup/logic and no span change.
+// -----------------------------------------------------------------------------
+.argo-table-list__head .columns.workflows-list__custom-col,
+.argo-table-list__row .columns.workflows-list__custom-col {
+    flex-basis: auto;
+    max-width: none;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+// -----------------------------------------------------------------------------
+// KEEP THE 11-UNIT GRID ON ONE LINE (Loop 11, item 1 — the actual root cause).
+// argo-ui ships the FLEX grid (`@include foundation-flex-grid`), so the inner
+// content container `.small-10.row` is `display:flex; flex-wrap:wrap`. The 9
+// static cells (Name small-2 + Namespace/Started/Finished/Duration/Progress +
+// Message small-2 + Details + Archived) already sum to 11/12 = 91.667%, leaving
+// only 8.333% (~78px at the 1440 viewport) of track for a custom column. The
+// content-sized custom cell above needs ~120–135px for a label like "Workflow
+// Completed"/"Workflow Link", so under `flex-wrap:wrap` it WRAPS onto a second
+// line and the header reads as a clipped/stacked "Workflow…". That wrap — NOT a
+// per-cell ellipsis — is the last-header truncation.
+//
+// Fix (styling only, head + row in lockstep, no span change): pin the inner
+// content row to `flex-wrap: nowrap` so every cell — including the content-sized
+// custom column — stays on ONE line and the full header label is visible. With
+// nowrap the flex cells lay out left-to-right without ever dropping to a second
+// row; the static cells keep their tracks and the custom cell takes its content
+// width. If two-plus custom columns push the total past 100%, the row scrolls
+// horizontally (the pre-existing, acceptable behaviour) instead of wrapping. The
+// head and the data row use the SAME inner `.small-10.row` container, so they
+// stay column-aligned. No markup/logic change.
+// -----------------------------------------------------------------------------
+.argo-table-list__head .small-10.row,
+.argo-table-list__row .small-10.row {
+    flex-wrap: nowrap;
+}
+
+// With nowrap, the content-sized custom cell (~126px for "Workflow Completed")
+// would push the inner row's total past the ~935px `.small-10` container by the
+// ~48px it claims beyond its old 1/12 track, overflowing the page's right edge.
+// Let the two WIDE static cells (Name + Message, both `small-2`) give that space
+// back: allow them to shrink below their Foundation flex-basis so the nowrap row
+// compresses to fit the container exactly (Σ ≤ container, no wrap, no ellipsis,
+// no horizontal overflow). `min-width: 0` is required for a flex item to shrink
+// below its content/track; `flex-shrink: 1` opts them back into shrinking (the
+// Foundation `.columns` default is `flex-shrink: 0`). The narrow meta cells keep
+// their fixed tracks so the columns stay aligned head-to-row. Name/Message text
+// already wrap/clip gracefully inside their own cells. Head + row in lockstep.
+.argo-table-list__head .small-10.row > .columns.small-2,
+.argo-table-list__row .small-10.row > .columns.small-2 {
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+// -----------------------------------------------------------------------------
+// CELL vertical breathing. The row itself got top/bottom padding in Stage 1, but
+// individual columns still butt against each other when MESSAGE / NAME wrap to a
+// second line. Give each cell a small symmetric vertical pad so wrapped content
+// has air without disturbing the single-line vertical centring. Keep it modest
+// (4px) so single-line rows do not grow; the row's flex `align-items:center`
+// (Stage 1) keeps everything on one band.
+// -----------------------------------------------------------------------------
+.argo-table-list__row .columns {
+    padding-top: var(--awf-space-1, 4px);
+    padding-bottom: var(--awf-space-1, 4px);
+}
+
+// -----------------------------------------------------------------------------
+// SECONDARY-COLUMN HIERARCHY (UX). Stage 1 receded only the timestamp cells when
+// the ISO toggle was on, and could not safely touch Duration / Progress because
+// those cells carried no stable class (a positional nth-of-type rule among the
+// small-2 anchor + dynamic label columns would be brittle). Stage 2 adds a stable
+// `.workflows-list__meta` class to the Namespace / Started / Finished / Duration /
+// Progress cells (className-only edit in workflows-row.tsx — no logic/data change),
+// so the secondary reference columns can now be receded RELIABLY. The NAME link
+// stays at heading colour + semibold (_modern-type.scss) and the STATUS pill keeps
+// its colour, so NAME + STATUS lead the scan and the meta columns recede behind
+// them. The Message and Details/Archived/label cells are intentionally left at body
+// treatment (Message can carry an important error; Details is an action control).
+// -----------------------------------------------------------------------------
+.workflows-list__meta {
+    font-size: var(--awf-font-size-meta, 12px);
+    color: var(--awf-muted-aa, #556472);
+}

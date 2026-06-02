@@ -1,0 +1,65 @@
+// _modern-help-button.scss — CALM the floating bottom-right "Get help" widget.
+//
+// THE WIDGET (ChatButton) renders as
+//   <a class="argo-button argo-button--special chat-button"> <i…/> Get help</a>
+// i.e. an ANCHOR with an href. The a11y-paint layer (loaded LAST) sets
+//   a, a:link, a:visited { color: var(--awf-link-aa) }   // teal #00808e
+// and `a:link` carries specificity (0,1,1) — which BEATS argo-ui's and the
+// restyle's `.argo-button--special { color:… }` at (0,1,0). So any colour we
+// want on the label MUST be scoped at >= (0,1,1). We target the widget by its
+// stable hook class `.chat-button` COMBINED WITH `.argo-button--special`,
+// giving (0,2,0) which cleanly beats `a:link` (0,1,1).
+//
+// LOOP 6 ACCENT RATIONALIZE (#4): the prior treatment was a SOLID saturated
+// teal pill (#008291 fill, white label) floating on every page — the single
+// most saturated element on screen, fighting the brand orange (logo) and the
+// green status pills. Teal is meant to be the SPARING interactive accent
+// (links / focus), not a billboard. So we drop it onto the NEUTRAL button
+// system: a quiet white/surface ghost pill with a hairline border and the
+// AA-clean teal-6 link colour for the label + icon (teal stays in its
+// interactive lane as text, not as a loud fill). The pill still reads as a
+// clear, tappable affordance, just calm.
+//
+// AA: teal-6 link #00808e on the white/surface fill = 4.69:1 (>= 4.5:1, AA for
+// normal text). Hover deepens the text to the darker accent and adds the faint
+// teal wash background (still teal-6 text on a near-white wash, AA-clean).
+//
+// Loaded AFTER a11y-paint in app-restyle so this scoped rule wins by source
+// order too (belt-and-suspenders alongside the specificity win).
+//
+// Sass hygiene: plain CSS + var() tokens only. No @import, no darken()/lighten().
+
+.chat-button.argo-button--special {
+    // Neutral ghost pill: white/surface fill, hairline border, teal-6 link text.
+    // (0,2,0) beats the a11y-paint `a:link` teal at (0,1,1), so the label colour
+    // we set here actually applies.
+    color: var(--awf-link-aa, #00808e);
+    background-color: var(--awf-surface, #ffffff);
+    box-shadow: inset 0 0 0 1px var(--awf-hairline, #ccd6dd), var(--awf-shadow-card, 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1));
+
+    i {
+        // The leading comment glyph shares the calm teal-6 label colour.
+        color: var(--awf-link-aa, #00808e);
+    }
+
+    &:not(.disabled) {
+        &:hover,
+        &:focus {
+            // Stay in the neutral system on interaction: a faint teal wash with
+            // the deeper accent text (teal-6 text on the near-white wash is
+            // AA-clean), instead of flooding to a saturated teal fill.
+            color: var(--awf-accent-hover, #008291);
+            background-color: var(--awf-ghost-hover, #f0f7f9);
+            box-shadow: inset 0 0 0 1px var(--awf-hairline, #ccd6dd), var(--awf-shadow-card-hover, 0 2px 4px rgba(16, 24, 40, 0.08), 0 4px 10px rgba(16, 24, 40, 0.1));
+
+            i {
+                color: var(--awf-accent-hover, #008291);
+            }
+        }
+
+        &:focus-visible {
+            outline: none;
+            box-shadow: inset 0 0 0 1px var(--awf-teal-5, #1fbdd0), var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+        }
+    }
+}

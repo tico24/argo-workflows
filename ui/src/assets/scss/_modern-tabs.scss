@@ -1,0 +1,74 @@
+// _modern-tabs.scss — UI modernization: underline tabs (de-boxed).
+//
+// argo-ui tabs are a boxed/elevated bar (`box-shadow:0 1px 3px ...`) with
+// UPPERCASE links and heavy `padding:12px 36px`. We convert to modern underline
+// tabs: a flat bar with a 1px hairline baseline, sentence-case links, slimmer
+// padding, and the EXISTING 2px teal `.tabs__indicator` as the active underline.
+//
+// The indicator is JS-positioned (tabs.tsx sets left/width at runtime) — we only
+// restyle its static look (colour/height/radius), never its position mechanism.
+//
+// Loaded AFTER argo-ui and after _overrides-chrome (icon colour) so this wins.
+
+.tabs__nav {
+    // Drop the elevated boxed look for a flat underlined bar.
+    box-shadow: none;
+    border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+    padding: 0 4px;
+    background-color: var(--awf-surface, #fff);
+
+    a {
+        margin: 0 4px;
+        padding: 12px 16px;
+        font-size: var(--awf-font-size-sm, 13px);
+        font-weight: var(--awf-weight-medium, 500);
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--awf-muted-aa, #556472);
+        // Give inactive tabs a tiny transparent baseline so the hover/active
+        // states sit on a consistent rhythm with the moving indicator.
+        border-bottom: 2px solid transparent;
+        transition: color 0.15s ease, border-color 0.15s ease;
+
+        &:hover {
+            color: var(--awf-heading, #363c4a);
+        }
+
+        &.active {
+            color: var(--awf-accent, #00a2b3);
+            font-weight: var(--awf-weight-semibold, 600);
+        }
+
+        i {
+            color: var(--awf-muted-aa, #556472);
+        }
+    }
+
+    // The transparent tab variant already has a hairline baseline; align its
+    // active colour and de-uppercase via the inherited rules above.
+    &.transparent {
+        border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+
+        a.active {
+            color: var(--awf-accent, #00a2b3);
+        }
+    }
+}
+
+// Active underline: keep the existing 2px teal bar, just align the hue to the
+// accent token and sit it flush on the baseline. Position is JS-driven — DO NOT
+// set left/width/right here.
+.tabs__indicator {
+    height: 2px;
+    background: var(--awf-accent, #00a2b3);
+    border-radius: 1px;
+}
+
+// Open up the cramped 16px tab content padding onto the 8px grid.
+.tabs__content {
+    padding: var(--awf-space-5, 20px);
+
+    &--no-padding {
+        padding: 0;
+    }
+}

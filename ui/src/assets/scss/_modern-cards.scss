@@ -1,0 +1,214 @@
+// _modern-cards.scss — UI modernization (Stage B): cohesive cards, panels,
+// elevation, status pills and the de-pilled action toolbar.
+//
+// _modern-surfaces.scss already modernised the argo-ui `.argo-table-list__row`
+// and `.white-box` (8px radius + cohesive soft shadow). This partial covers the
+// surfaces that live in APP-LOCAL scss (filter cards, the workflows action
+// toolbar, status badges) plus the remaining argo-ui elevation surfaces (modal,
+// graph-options, dropdown) so the WHOLE chrome shares ONE shadow scale instead
+// of the old stacked 1/2/3px offset drop shadows.
+//
+// Loaded AFTER argo-ui AND after each component's own app-local scss (the entry
+// imports this restyle bundle last via app.tsx), so equal-specificity rules win
+// by source order. Geometry-within-component only.
+//
+// Sass hygiene: plain CSS + var() tokens. No @import, no darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// Cohesive elevation: every floating surface gets the same soft shadow + radius
+// family, replacing argo-ui's hard `1px 2px 3px rgba(0,0,0,.1)` offset shadows.
+// -----------------------------------------------------------------------------
+.modal {
+    border-radius: var(--awf-radius-card, 8px);
+    box-shadow: var(--awf-shadow-pop, 0 4px 16px rgba(16, 24, 40, 0.14));
+}
+
+.graph-options-panel {
+    border-radius: var(--awf-radius-card, 8px);
+    box-shadow: var(--awf-shadow-card, 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1));
+}
+
+// -----------------------------------------------------------------------------
+// App-local FILTER CARD — the SINGLE source of truth for the filter-panel
+// surface shared by all four filter sidebars (workflows-list / cron / templates
+// / reports), which ALL render `.wf-filters-container`. Each per-page scss file
+// (workflow-filters / cron-workflow-filters / workflow-template-filters /
+// reports-filters) used to re-declare its own border/radius/shadow/background
+// card-surface block; those duplicated rules are removed there so the surface is
+// defined ONCE here and the four panels can never drift. The hairline BORDER and
+// surface BACKGROUND live with the per-component base; the cohesive elevation +
+// 8px radius + roomy padding are unified here (Loop 9/11). Loaded after the
+// per-page scss (app.tsx imports this restyle bundle last) so it wins by source
+// order; !important keeps it authoritative over any legacy argo-ui card finish.
+// -----------------------------------------------------------------------------
+.wf-filters-container {
+    overflow: visible;
+    position: relative;
+    margin: var(--awf-space-3, 12px) 0;
+    background: var(--awf-surface, #fff);
+    border: 1px solid var(--awf-hairline, #ccd6dd);
+    border-radius: var(--awf-radius-card, 8px) !important;
+    box-shadow: var(--awf-shadow-card, 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1)) !important;
+    // Match the Workflows Summary box padding exactly (16px on all four sides)
+    // so the two left-rail cards read as one consistent system. Previously the
+    // top was 0 and the bottom 12px, leaving the filter card visibly tighter
+    // than the summary box above it.
+    padding: var(--awf-space-4, 16px) !important;
+
+    // ONE unified filter treatment (Loop 11, item 2). All four filter sidebars
+    // (workflows-list / cron / templates / reports) render `.wf-filters-container`
+    // and now share the SAME bordered white card AND the same "Filters" group
+    // header (argo-cd `.filters-group__title`): a centered, muted, hairline-
+    // underlined title that frames the whole panel as one cohesive Argo-CD-style
+    // filters group. The header used to be scoped to the workflows-list panel via
+    // a `--workflows` modifier, which made that one panel read as a designed group
+    // while the other three were a borderless/header-less stack — the exact
+    // inconsistency being unified here. Promoting it to the base selector gives all
+    // four the identical grouped-card treatment. `::before` is a label only; no
+    // markup/logic change.
+    &::before {
+        content: 'Filters';
+        display: block;
+        // Now that the card carries a full 16px top padding (matching the summary
+        // box), the header sits flush at the padding edge — no extra top margin
+        // (which would double the gap). Keep the bottom rhythm to the first field.
+        margin: 0 0 var(--awf-space-3, 12px);
+        padding-bottom: var(--awf-space-2, 8px);
+        border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+        // Group header on the SAME calm treatment as the section labels: 12px,
+        // semibold, sentence case, NO tracking (the old uppercase + 0.04em was
+        // the "stupidly spaced out" cheap look). Left-aligned to the one shared
+        // left edge so nothing is centred/indented differently.
+        text-align: left;
+        font-size: var(--awf-font-size-label, 12px);
+        font-weight: var(--awf-weight-semibold, 600);
+        letter-spacing: normal;
+        text-transform: none;
+        color: var(--awf-heading, #363c4a);
+    }
+
+    // The FIRST field label in every panel should sit snug under the shared
+    // "Filters" header rather than carrying its own top margin (the vertically
+    // stacked panels give each `p` a 1em top margin; the workflows panel lays its
+    // groups out horizontally). Trim the first label's top margin in all four so
+    // the header-to-first-field rhythm is identical across pages.
+    .row > .columns:first-child .wf-filters-container__title,
+    .row > .columns:first-child p:first-child {
+        margin-top: var(--awf-space-2, 8px);
+    }
+
+    // Field-label TYPOGRAPHY is owned by _modern-controls.scss (Loop 5 R3), which
+    // re-grounds these labels on Argo CD's pervasive UPPERCASE muted-grey eyebrow
+    // (matching the R2 logs toolbar) for ONE consistent field-label treatment
+    // app-wide. Only the card SURFACE (radius / shadow / padding above) is owned
+    // here. Calm tracking is kept as a harmless, non-!important default that
+    // _modern-controls re-asserts at the same value.
+    p {
+        letter-spacing: normal;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// List rows: complement _modern-surfaces (radius/shadow/hover) with comfortable
+// VERTICAL rhythm. argo-ui rows are a single 52px line; give the clickable list
+// a touch more inter-row gap so cards read as discrete, tappable surfaces.
+// (Color/selected/hover already handled in _modern-surfaces — not repeated.)
+// -----------------------------------------------------------------------------
+.argo-table-list--clickable .argo-table-list__row {
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+// -----------------------------------------------------------------------------
+// WORKFLOWS ACTION TOOLBAR: argo-ui-adjacent app toolbar ships gray, 3px-radius,
+// pill-ish action chips on a flat gray band. Modernise to a crisp surface bar
+// with de-pilled 6px action buttons that share the button radius family. Colours
+// (suspend/resume/delete) are preserved — only geometry + the band finish move.
+// -----------------------------------------------------------------------------
+.workflows-toolbar {
+    background: var(--awf-surface, #fff);
+    box-shadow: 0 1px 0 0 var(--awf-hairline, #ccd6dd);
+    padding: var(--awf-space-2, 8px) var(--awf-space-5, 20px);
+
+    &__actions--action {
+        border-radius: var(--awf-radius-control, 6px);
+        padding: var(--awf-space-1, 4px) var(--awf-space-3, 12px);
+        font-weight: var(--awf-weight-medium, 500);
+        transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// STATUS BADGE widget: convert the flat full-colour blocks into rounded
+// tinted-alpha pills with AA status text and a canonical-hue leading dot. The
+// fixed 80/120px column widths are preserved (no overflow); only the finish and
+// the inner radius change. The name `.label` stays a calm neutral chip.
+// -----------------------------------------------------------------------------
+.status-badge {
+    height: auto;
+
+    .label,
+    .status {
+        // Keep the original 80/120px as a FLOOR (min-width) rather than a hard
+        // cap so the dot + roomier padding can never clip the status word. The
+        // columnar rhythm is preserved; long content expands instead of cutting.
+        width: auto;
+        min-width: 80px;
+        padding: var(--awf-space-1, 4px) var(--awf-space-2, 8px);
+        text-transform: none;
+        font-weight: var(--awf-weight-medium, 500);
+        line-height: 1.4;
+        overflow: visible;
+    }
+
+    // Neutral name chip on the left, rounded on its leading edge.
+    .label {
+        min-width: 120px;
+        background-color: var(--awf-canvas, #dee6eb);
+        color: var(--awf-heading, #363c4a);
+        border-radius: var(--awf-radius-control, 6px) 0 0 var(--awf-radius-control, 6px);
+    }
+
+    // Status chip on the right, rounded on its trailing edge. Default neutral.
+    .status {
+        background-color: var(--awf-canvas, #dee6eb);
+        color: var(--awf-muted-aa, #556472);
+        border-radius: 0 var(--awf-radius-control, 6px) var(--awf-radius-control, 6px) 0;
+
+        // Canonical-hue leading dot before the status word.
+        &::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            margin-right: var(--awf-space-1, 4px);
+            border-radius: var(--awf-radius-pill, 999px);
+            background-color: currentColor;
+            vertical-align: middle;
+        }
+    }
+
+    // Per-phase tinted-alpha background + AA text. Dot inherits currentColor, so
+    // the text colour IS the canonical hue (AA verified in _tokens.scss).
+    .status.Unknown {
+        background-color: rgba(109, 127, 139, 0.14);
+        color: var(--awf-status-pending-text, #566a78);
+    }
+    .status.Pending {
+        background-color: rgba(244, 192, 48, 0.18);
+        color: var(--awf-status-warning-text, #806100);
+    }
+    .status.Running {
+        background-color: rgba(13, 173, 234, 0.16);
+        color: var(--awf-status-running-text, #0a7299);
+    }
+    .status.Failed,
+    .status.Error {
+        background-color: rgba(233, 109, 118, 0.18);
+        color: var(--awf-status-failed-text, #be3d47);
+    }
+    .status.Succeeded {
+        background-color: rgba(24, 190, 148, 0.16);
+        color: var(--awf-status-succeeded-text, #0a7257);
+    }
+}

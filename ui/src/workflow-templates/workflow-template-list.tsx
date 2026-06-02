@@ -155,10 +155,10 @@ export function WorkflowTemplateList() {
                             <div className='argo-table-list'>
                                 <div className='row argo-table-list__head'>
                                     <div className='columns small-1' />
-                                    <div className='columns small-5'>NAME</div>
-                                    <div className='columns small-3'>NAMESPACE</div>
+                                    <div className='columns small-5'>Name</div>
+                                    <div className='columns small-3'>Namespace</div>
                                     <div className='columns small-3'>
-                                        CREATED <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormat} setStoredDisplayISOFormat={setStoredDisplayISOFormat} />
+                                        Created <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormat} setStoredDisplayISOFormat={setStoredDisplayISOFormat} />
                                     </div>
                                 </div>
                                 {templates.map(t => {

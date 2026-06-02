@@ -1,24 +1,104 @@
 @import 'node_modules/argo-ui/src/styles/config';
 
+// CheckboxFilter — restyled to Argo CD's status-filter rows (Loop 9, Stage A.2):
+// each row is a rounded 2em line carrying [checkbox][colored status dot][label]
+// [right-aligned count], matching argo-cd `.filter__item`. The Checkbox onChange
+// is untouched (filtering behaviour unchanged); the dot + count are display-only.
+//
+// Grounded in argo-cd ui/src/app/applications/components/filter/filter.scss:
+//   .filter__item { height:2em; padding:0 5px; border-radius:5px; display:flex;
+//                   align-items:center; margin:.15em 0; }
+//   count { margin-left:auto } (right aligned)
 .checkbox-filter {
-    max-height: calc(1.55em * 14);
+    max-height: calc(2em * 14);
     transition: max-height 0.25s cubic-bezier(0, 1, 0, 1);
     overflow-y: auto;
-    margin-left: 0.2rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 120px));
+    margin: 0;
+    padding: 0;
+    // Single-column vertical list (argo-cd style), not a multi-col chip grid.
+    display: block;
 }
 
 .checkbox-filter li {
     list-style: none;
 }
 
+// Each row -> argo-cd `.filter__item`.
+.checkbox-filter li > .row {
+    height: 2em;
+    margin: 0.15em 0;
+    padding: 0 5px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+        background-color: var(--awf-ghost-hover, #f0f7f9);
+    }
+}
+
 .checkbox-filter__label {
-    vertical-align: bottom;
-    width: calc(100% - 50px);
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
     white-space: nowrap;
-    margin-right: 25px;
+
+    label {
+        // Phase labels (Pending/Running/Succeeded/Failed/Error) are short and the
+        // filter card has ample width, so the label sizes to its content and is
+        // never clipped: do NOT shrink it (flex-shrink 0) and drop the
+        // overflow/ellipsis clamp. The count still right-aligns via its own
+        // margin-left:auto, so "Succeeded" + its count both show in full.
+        flex: 0 0 auto;
+        white-space: nowrap;
+        margin: 0;
+        cursor: pointer;
+    }
+}
+
+// Colored status dot (argo-cd renders a fa-circle in the phase colour; we use a
+// simple 8px filled circle keyed off the phase name).
+.checkbox-filter__dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin: 0 var(--awf-space-2, 8px) 0 var(--awf-space-1, 4px);
+    background: var(--awf-muted, #6d7f8b);
+
+    &--phase-Succeeded {
+        background: var(--awf-status-succeeded-text, #0a7257);
+    }
+    &--phase-Running {
+        background: var(--awf-status-running-text, #0a7299);
+    }
+    &--phase-Pending {
+        background: var(--awf-status-pending-text, #566a78);
+    }
+    &--phase-Failed,
+    &--phase-Error {
+        background: var(--awf-status-failed-text, #be3d47);
+    }
+
+    // Cron-workflow State filter (type='state').
+    &--state-Running {
+        background: var(--awf-status-running-text, #0a7299);
+    }
+    &--state-Suspended {
+        background: var(--awf-status-pending-text, #566a78);
+    }
+}
+
+// Right-aligned count (argo-cd `margin-left:auto`).
+.checkbox-filter__count {
+    margin-left: auto;
+    padding-left: var(--awf-space-2, 8px);
+    flex: 0 0 auto;
+    font-size: var(--awf-font-size-meta, 12px);
+    color: var(--awf-muted-aa, #556472);
+    font-variant-numeric: tabular-nums;
 }

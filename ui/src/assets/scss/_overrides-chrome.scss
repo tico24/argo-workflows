@@ -1,0 +1,15 @@
+// Cascade overrides: misc chrome (paint-level only).
+//
+// Most of this file's original scope has moved into the modern-* partials:
+//   - tab icon colour            -> _modern-tabs.scss
+//   - .argo-field border/radius  -> _modern-inputs.scss
+//   - dropdown elevation         -> _modern-surfaces.scss
+//
+// What remains here is the single hairline that has no other home.
+//
+// COLOR / BORDER-COLOR ONLY. Borders stay 1px — only colour changes.
+
+// Sliding-panel footer hairline (#c6cfd1) -> palette hairline (1px unchanged).
+.sliding-panel__footer {
+    border-top-color: var(--awf-hairline);
+}

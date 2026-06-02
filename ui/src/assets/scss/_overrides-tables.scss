@@ -1,0 +1,8 @@
+// Cascade overrides: table-list elevation.
+//
+// SUPERSEDED: row geometry + elevation (8px radius, cohesive soft shadow,
+// comfortable hover background, tighter row height) now lives in
+// `_modern-surfaces.scss`, @use'd from app-restyle.scss AFTER this file.
+//
+// This file intentionally declares no rules; it is kept so the existing
+// `@use 'overrides-tables'` in app-restyle.scss remains valid.

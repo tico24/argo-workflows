@@ -1,8 +1,15 @@
 import type {AnnotationOptions} from 'chartjs-plugin-annotation';
 
 import {denominator} from '../shared/duration';
-import {getColorForNodePhase, Workflow} from '../shared/models';
+import {Workflow} from '../shared/models';
 import type {Chart} from './reports';
+
+// Neutral/teal duration bar color. Duration is a neutral metric, so it must NOT
+// be colored by workflow phase (which painted every bar the saturated alarm-red
+// of getColorForNodePhase for failed/errored runs, reading as an error for a
+// plain duration). Reuse the same teal accent the CPU resource series uses
+// below (#00a2b3 === --awf-accent), reserving red for actual failure. AA-clean.
+const DURATION_BAR_COLOR = '#00a2b3';
 
 export function workflowsToChartData(workflows: Workflow[], limit: number): Chart[] {
     const filteredWorkflows = workflows
@@ -25,7 +32,7 @@ export function workflowsToChartData(workflows: Workflow[], limit: number): Char
 
     filteredWorkflows.forEach((wf, i) => {
         labels[i] = wf.name;
-        backgroundColors[i] = getColorForNodePhase(wf.phase);
+        backgroundColors[i] = DURATION_BAR_COLOR;
         durationData[i] = (wf.finishedAt.getTime() - wf.startedAt.getTime()) / 1000;
         Object.entries(wf.resourcesDuration || {}).forEach(([resource, value]) => {
             if (!resourceData[resource]) {
@@ -35,10 +42,10 @@ export function workflowsToChartData(workflows: Workflow[], limit: number): Char
         });
     });
     const resourceColors = {
-        'cpu': 'teal',
-        'memory': 'blue',
-        'storage': 'purple',
-        'ephemeral-storage': 'purple'
+        'cpu': '#00a2b3',
+        'memory': '#3576c4',
+        'storage': '#f4c030',
+        'ephemeral-storage': '#806100'
     } as {[resource: string]: string};
 
     const avgDuration = durationData.length > 0 ? durationData.reduce((a, b) => a + b, 0) / durationData.length : 0;
@@ -103,7 +110,7 @@ export function workflowsToChartData(workflows: Workflow[], limit: number): Char
                     yAxisID: resource,
                     label: resource,
                     data,
-                    backgroundColor: resourceColors[resource] || 'black'
+                    backgroundColor: resourceColors[resource] || '#363c4a'
                 }))
             },
             options: {
