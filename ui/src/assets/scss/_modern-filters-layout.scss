@@ -1,0 +1,172 @@
+// _modern-filters-layout.scss — FEATURE: right-hand, collapsible filter sidebar.
+//
+// All four list views (workflows / cron / templates / reports) lay out a
+// Foundation `.row` with exactly two PAGE-LEVEL columns:
+//   .columns.small-12.xlarge-2   -> the filter sidebar card
+//   .columns.small-12.xlarge-10  -> the table / charts
+// Foundation's flex grid means DOM order == visual order, so we flip the
+// VISUAL order with `order` (NOT a DOM/JSX reorder, NOT row-reverse) so that:
+//   - all existing tests + filter wiring stay byte-identical, and
+//   - the `.row > .columns:first-child .wf-filters-container__title` margin
+//     trim in _modern-cards.scss keeps matching (DOM first child unchanged).
+//
+// SCOPING: every filter PANEL has its OWN nested `.row > .columns` sub-blocks,
+// so we ONLY ever use DIRECT-CHILD selectors (`> .columns`) to avoid
+// scrambling those nested rows.
+//
+// RESPONSIVE: only applies at xlarge (>= 1200px, argo-ui config) where the two
+// columns sit side-by-side. Below that they are small-12 (100%) and stack —
+// we leave that natural order alone.
+
+// Shared wrapper class added to the four page-level rows.
+.wf-list-layout {
+    // The expand handle is positioned relative to the row when collapsed; the
+    // filter column is the positioning context for the expanded toggle.
+    position: relative;
+
+    > .columns.xlarge-2 {
+        position: relative;
+    }
+
+    @media (min-width: 1200px) {
+        // Move the filter sidebar to the RIGHT, table to the LEFT.
+        > .columns.xlarge-2 {
+            order: 2;
+            // Smooth the collapse: animate the card out to the right.
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        > .columns.xlarge-10 {
+            order: 1;
+            transition: flex-basis 0.2s ease, max-width 0.2s ease;
+        }
+    }
+
+    // --- Collapsed state -------------------------------------------------
+    &.wf-list-layout--collapsed {
+        @media (min-width: 1200px) {
+            > .columns.xlarge-2 {
+                // Hide the filter card; table reclaims the full width.
+                display: none;
+            }
+            > .columns.xlarge-10 {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        > .columns.xlarge-2,
+        > .columns.xlarge-10 {
+            transition: none;
+        }
+    }
+}
+
+// --- The collapse / expand affordance -----------------------------------
+// ONE neutral control system shared by both states. No teal FILL anywhere —
+// neutral surfaces + hairline borders matching the app's grey button system;
+// teal appears only as a quiet hover accent (icon + border tint). Both states
+// only render at xlarge (>= 1200px) where the sidebar sits beside the table and
+// collapsing is meaningful; below that the columns stack and collapse is a
+// no-op, so showing a handle would orphan it.
+.filters-collapse-toggle {
+    appearance: none;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    color: var(--awf-muted-aa);
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+
+    @media (min-width: 1200px) {
+        display: inline-flex;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--awf-focus-ring);
+        outline-offset: 2px;
+    }
+
+    // EXPANDED state: a compact, ANCHORED neutral icon button docked at the
+    // TOP-RIGHT of the filter rail. It rests as a real neutral chip (surface +
+    // hairline border, matching the card/button system) so it reads as a
+    // deliberate docked control rather than a floating orphan chevron; on
+    // hover/focus the border + icon pick up the quiet teal accent. Absolute
+    // (not float) so it never disturbs the card flow.
+    position: absolute;
+    top: var(--awf-space-2);
+    right: var(--awf-space-2);
+    z-index: 2;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: var(--awf-surface);
+    border: 1px solid var(--awf-hairline);
+    border-radius: var(--awf-radius-control);
+    box-shadow: var(--awf-shadow-card);
+
+    &:hover {
+        color: var(--awf-link-aa);
+        background: var(--awf-ghost-hover);
+        border-color: var(--awf-accent);
+    }
+
+    i {
+        font-size: 14px;
+        line-height: 1;
+    }
+}
+
+// COLLAPSED state: a tasteful NEUTRAL panel-edge handle tucked against the right
+// edge of the now full-width table — a deliberate "pull filters back" tab, not
+// leftover chrome. Neutral surface + hairline border (matching cards/buttons),
+// a filter glyph over a quiet vertical "Filters" label and a small chevron hint.
+// Rounded LEFT edge + soft shadow so it reads as a tab pulled in from the edge;
+// teal only tints the icon/label/border on hover.
+.filters-collapse-toggle--collapsed {
+    position: absolute;
+    top: var(--awf-space-7);
+    right: 0;
+    z-index: 3;
+    width: 32px;
+    height: auto;
+    flex-direction: column;
+    gap: var(--awf-space-2);
+    padding: var(--awf-space-3) var(--awf-space-1);
+    color: var(--awf-muted-aa);
+    background: var(--awf-surface);
+    border: 1px solid var(--awf-hairline);
+    border-right: none;
+    border-radius: var(--awf-radius-card) 0 0 var(--awf-radius-card);
+    box-shadow: var(--awf-shadow-card-hover);
+
+    &:hover {
+        color: var(--awf-link-aa);
+        background: var(--awf-ghost-hover);
+        border-color: var(--awf-accent);
+        border-right: none;
+    }
+
+    .filters-collapse-toggle__glyph {
+        font-size: 14px;
+        line-height: 1;
+        color: var(--awf-link-aa);
+    }
+
+    .filters-collapse-toggle__label {
+        writing-mode: vertical-rl;
+        font-size: var(--awf-font-size-label);
+        font-weight: var(--awf-weight-semibold, 600);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--awf-heading);
+    }
+
+    .filters-collapse-toggle__chevron {
+        font-size: 12px;
+        line-height: 1;
+        color: var(--awf-muted-aa);
+    }
+}

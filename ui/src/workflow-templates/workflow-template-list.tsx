@@ -8,6 +8,7 @@ import {uiUrl} from '../shared/base';
 import {ErrorNotice} from '../shared/components/error-notice';
 import {ExampleManifests} from '../shared/components/example-manifests';
 import {InfoIcon} from '../shared/components/fa-icons';
+import {FiltersCollapseToggle} from '../shared/components/filters-collapse-toggle';
 import {Loading} from '../shared/components/loading';
 import {PaginationPanel} from '../shared/components/pagination-panel';
 import {TimestampSwitch} from '../shared/components/timestamp';
@@ -21,6 +22,7 @@ import {Pagination, parseLimit} from '../shared/pagination';
 import {ScopedLocalStorage} from '../shared/scoped-local-storage';
 import {services} from '../shared/services';
 import {useCollectEvent} from '../shared/use-collect-event';
+import {useFiltersCollapsed} from '../shared/use-filters-collapsed';
 import {useQueryParams} from '../shared/use-query-params';
 import useTimestamp, {TIMESTAMP_KEYS} from '../shared/use-timestamp';
 import {WorkflowTemplateCreator} from './workflow-template-creator';
@@ -48,6 +50,7 @@ export function WorkflowTemplateList() {
     const savedOptions = storage.getItem('paginationLimit', 0);
 
     // state for URL and query parameters
+    const [filtersCollapsed, toggleFiltersCollapsed] = useFiltersCollapsed();
     const [namespace, setNamespace] = useState(nsUtils.getNamespace(routeParams.namespace) || '');
     const [sidePanel, setSidePanel] = useState(queryParams.get('sidePanel') === 'true');
     const [namePattern, setNamePattern] = useState('');
@@ -122,8 +125,9 @@ export function WorkflowTemplateList() {
                     ]
                 }
             }}>
-            <div className='row'>
+            <div className={`row wf-list-layout ${filtersCollapsed ? 'wf-list-layout--collapsed' : ''}`}>
                 <div className='columns small-12 xlarge-2'>
+                    <FiltersCollapseToggle collapsed={false} onToggle={toggleFiltersCollapsed} />
                     <div>
                         <WorkflowTemplateFilters
                             templates={templates || []}
@@ -172,6 +176,7 @@ export function WorkflowTemplateList() {
                         </>
                     )}
                 </div>
+                {filtersCollapsed && <FiltersCollapseToggle collapsed={true} onToggle={toggleFiltersCollapsed} />}
             </div>
             <SlidingPanel isShown={sidePanel} onClose={() => setSidePanel(false)}>
                 <WorkflowTemplateCreator namespace={namespace} onCreate={wf => navigation.goto(uiUrl(`workflow-templates/${wf.metadata.namespace}/${wf.metadata.name}`))} />

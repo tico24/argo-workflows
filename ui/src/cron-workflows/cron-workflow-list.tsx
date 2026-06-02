@@ -8,6 +8,7 @@ import {uiUrl} from '../shared/base';
 import {ErrorNotice} from '../shared/components/error-notice';
 import {ExampleManifests} from '../shared/components/example-manifests';
 import {InfoIcon} from '../shared/components/fa-icons';
+import {FiltersCollapseToggle} from '../shared/components/filters-collapse-toggle';
 import {Loading} from '../shared/components/loading';
 import {TimestampSwitch} from '../shared/components/timestamp';
 import {ZeroState} from '../shared/components/zero-state';
@@ -18,6 +19,7 @@ import {CronWorkflow} from '../shared/models';
 import * as nsUtils from '../shared/namespaces';
 import {services} from '../shared/services';
 import {useCollectEvent} from '../shared/use-collect-event';
+import {useFiltersCollapsed} from '../shared/use-filters-collapsed';
 import {useQueryParams} from '../shared/use-query-params';
 import useTimestamp, {TIMESTAMP_KEYS} from '../shared/use-timestamp';
 import {CronWorkflowCreator} from './cron-workflow-creator';
@@ -41,6 +43,7 @@ export function CronWorkflowList() {
 
     // state for URL, query, and label parameters
     const isFirstRender = useRef(true);
+    const [filtersCollapsed, toggleFiltersCollapsed] = useFiltersCollapsed();
     const [namespace, setNamespace] = useState<string>(nsUtils.getNamespace(routeParams.namespace) || '');
     const [sidePanel, setSidePanel] = useState(queryParams.get('sidePanel') === 'true');
     const [labels, setLabels] = useState<string[]>([]);
@@ -109,8 +112,9 @@ export function CronWorkflowList() {
                     ]
                 }
             }}>
-            <div className='row'>
+            <div className={`row wf-list-layout ${filtersCollapsed ? 'wf-list-layout--collapsed' : ''}`}>
                 <div className='columns small-12 xlarge-2'>
+                    <FiltersCollapseToggle collapsed={false} onToggle={toggleFiltersCollapsed} />
                     <div>
                         <CronWorkflowFilters
                             cronWorkflows={cronWorkflows || []}
@@ -176,6 +180,7 @@ export function CronWorkflowList() {
                         </>
                     )}
                 </div>
+                {filtersCollapsed && <FiltersCollapseToggle collapsed={true} onToggle={toggleFiltersCollapsed} />}
             </div>
             <SlidingPanel isShown={sidePanel} onClose={() => setSidePanel(false)}>
                 <CronWorkflowCreator namespace={namespace} onCreate={wf => navigation.goto(uiUrl(`cron-workflows/${wf.metadata.namespace}/${wf.metadata.name}`))} />

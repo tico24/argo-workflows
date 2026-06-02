@@ -83,3 +83,11 @@
 // + AA-darkened-fill rule wins by source order as well as by specificity
 // (it must beat the a11y-paint `a:link` teal link colour). Paint-only.
 @use 'modern-help-button';
+
+// FEATURE: right-hand, collapsible filter sidebar. Flips the page-level
+// filter/table columns so the filters sit on the RIGHT and the table reclaims
+// the left, plus a persisted collapse-to-the-edge state. Loaded last (layout
+// only, no colour math) so its `order` / collapsed-width rules win by source
+// order. Scoped to the page-level row via `.wf-list-layout > .columns` direct
+// children so nested filter rows are never reordered.
+@use 'modern-filters-layout';

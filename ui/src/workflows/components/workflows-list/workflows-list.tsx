@@ -8,6 +8,7 @@ import {uiUrl} from '../../../shared/base';
 import {CostOptimisationNudge} from '../../../shared/components/cost-optimisation-nudge';
 import {ErrorNotice} from '../../../shared/components/error-notice';
 import {ExampleManifests} from '../../../shared/components/example-manifests';
+import {FiltersCollapseToggle} from '../../../shared/components/filters-collapse-toggle';
 import {openLinkWithKey} from '../../../shared/components/links';
 import {Loading} from '../../../shared/components/loading';
 import {PaginationPanel} from '../../../shared/components/pagination-panel';
@@ -23,6 +24,7 @@ import {Pagination, parseLimit} from '../../../shared/pagination';
 import {ScopedLocalStorage} from '../../../shared/scoped-local-storage';
 import {services} from '../../../shared/services';
 import {useCollectEvent} from '../../../shared/use-collect-event';
+import {useFiltersCollapsed} from '../../../shared/use-filters-collapsed';
 import useTimestamp, {TIMESTAMP_KEYS} from '../../../shared/use-timestamp';
 import * as Actions from '../../../shared/workflow-operations-map';
 import {WorkflowCreator} from '../workflow-creator';
@@ -65,6 +67,7 @@ export function WorkflowsList() {
     const {navigation} = useContext(Context);
 
     const isFirstRender = useRef(true);
+    const [filtersCollapsed, toggleFiltersCollapsed] = useFiltersCollapsed();
     const [namespace, setNamespace] = useState(nsUtils.getNamespace(routeParams.namespace) || '');
     const [sidePanel, setSidePanel] = useState(queryParams.get('sidePanel') || '');
     const [pagination, setPagination] = useState<Pagination>(() => {
@@ -241,8 +244,9 @@ export function WorkflowsList() {
                 disabledActions={batchActionDisabled}
                 loadWorkflows={clearSelectedWorkflows}
             />
-            <div className={`row ${selectedWorkflows.size === 0 ? '' : 'pt-60'}`}>
+            <div className={`row wf-list-layout ${filtersCollapsed ? 'wf-list-layout--collapsed' : ''} ${selectedWorkflows.size === 0 ? '' : 'pt-60'}`}>
                 <div className='columns small-12 xlarge-2'>
+                    <FiltersCollapseToggle collapsed={false} onToggle={toggleFiltersCollapsed} />
                     <WorkflowsSummaryContainer workflows={workflows} />
                     <div>
                         <WorkflowFilters
@@ -380,6 +384,7 @@ export function WorkflowsList() {
                         </>
                     )}
                 </div>
+                {filtersCollapsed && <FiltersCollapseToggle collapsed={true} onToggle={toggleFiltersCollapsed} />}
             </div>
             <SlidingPanel isMiddle={true} isShown={!!sidePanel} onClose={() => setSidePanel('')}>
                 {sidePanel === 'submit-new-workflow' && (
