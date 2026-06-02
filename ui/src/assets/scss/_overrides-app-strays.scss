@@ -1,0 +1,17 @@
+// Cascade overrides: app stray hex literals (paint-level only).
+// COLOR ONLY. Out-specify the muted-text literal (#6d7f8b) used as normal text
+// so it meets AA contrast on white.
+//
+// Verified app sources using #6d7f8b as text:
+//   shared/components/object-editor/object-editor.scss  .object-editor       color #6d7f8b
+//   shared/components/editors/object-parser.scss        .object-parser__icon color #6d7f8b
+//
+// #fff surfaces and the login orange are intentionally left untouched.
+
+.object-editor {
+    color: var(--awf-muted-aa);
+}
+
+.object-parser__icon {
+    color: var(--awf-muted-aa);
+}

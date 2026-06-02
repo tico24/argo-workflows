@@ -8,6 +8,11 @@ interface Props {
     type: string;
     selected: string[];
     onChange: (selected: string[]) => void;
+    // Display-only: when true, render the right-aligned per-item count (Argo CD
+    // status-filter style). Off by default so callers whose `count` is not a
+    // meaningful tally (e.g. the cron State filter's placeholder values) do not
+    // surface a misleading number. Does not affect filtering behaviour.
+    showCounts?: boolean;
 }
 
 export function CheckboxFilter(props: Props) {
@@ -35,9 +40,11 @@ export function CheckboxFilter(props: Props) {
                                         props.onChange(newSelected);
                                     }}
                                 />{' '}
+                                <span className={`checkbox-filter__dot checkbox-filter__dot--${props.type} checkbox-filter__dot--${props.type}-${item.name}`} aria-hidden='true' />
                                 <label title={item.name} htmlFor={`filter-${props.type}-${item.name}`}>
                                     {item.name}
                                 </label>
+                                {props.showCounts && <span className='checkbox-filter__count'>{item.count}</span>}
                             </div>
                         </div>
                     </React.Fragment>

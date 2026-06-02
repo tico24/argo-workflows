@@ -120,7 +120,7 @@ export function WorkflowsToolbar(props: WorkflowsToolbarProps) {
                             className={`workflows-toolbar__actions--${operation.title} workflows-toolbar__actions--action`}
                             disabled={numberSelected === 0 || operation.isDisabled}>
                             <i className={operation.iconClassName} />
-                            &nbsp;{operation.title}
+                            &nbsp;{operation.title.charAt(0).toUpperCase() + operation.title.slice(1).toLowerCase()}
                         </button>
                     );
                 })}

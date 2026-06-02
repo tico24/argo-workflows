@@ -1,0 +1,311 @@
+// =============================================================================
+// UI Modernization Restyle — A11Y PAINT LAYER (Bucket-A, paint-only)
+// =============================================================================
+// Loaded LAST from app-restyle.scss so these overrides win the cascade.
+//
+// PAINT-ONLY: this file only ever sets color / background / background-color /
+// border-color / box-shadow / outline / fill / stroke / font-family and
+// animation|transition TIMING. It NEVER changes any box dimension or position
+// (no width/height/padding/margin/top/left/flex/grid/border-width that would
+// move layout). `outline` + `outline-offset` are painted OUTSIDE the box and do
+// not trigger reflow, so the focus rings are geometry-safe.
+//
+// Sass hygiene: @use + sass:color only. No @import, no darken()/lighten().
+// (Keeps the deprecation-warning baseline flat — see argo-workflows-838.)
+//
+// NOTE on markup: this is the PAINT half only. ARIA / markup / role work is
+// deferred to issue argo-workflows-yu9. Nothing here adds or changes DOM.
+//
+// Every token below is referenced as `var(--awf-*, <fallback>)`; the fallback
+// hexes mirror the canonical values in _tokens.scss so this layer is correct
+// even if a token name differs. Spec fallbacks:
+//   muted AA  #556472   link AA   #00808e   focus ring #00808e
+//   warning/suspended dot outline (dark amber) #806100
+//   pending dot outline (darker) #6b5400
+// =============================================================================
+
+@use 'sass:color';
+
+$muted-aa: var(--awf-muted-aa, #556472);
+$link-aa: var(--awf-link-aa, #00808e);
+$focus-ring: var(--awf-focus-ring, #00808e);
+
+$amber-outline: var(--awf-status-warning-outline, #806100);
+$pending-outline: var(--awf-status-pending-outline, #6b5400);
+
+// -----------------------------------------------------------------------------
+// (a) Non-status text — meet AA on body, muted text, and inline links.
+//     Muted text and links are TEXT, so they take the AA-darkened variants.
+//     The brighter #00A2B3 teal is kept for large text / icons / borders.
+// -----------------------------------------------------------------------------
+.muted,
+.text-muted,
+.fa-muted,
+small.muted,
+.columns .muted,
+.row .muted {
+  color: $muted-aa;
+}
+
+a,
+a:link,
+a:visited,
+.link,
+p a,
+li a,
+td a,
+.markdown a {
+  color: $link-aa;
+}
+
+a:hover,
+a:focus,
+.link:hover {
+  color: var(--awf-link-aa-hover, color.adjust(#00808e, $lightness: -8%));
+}
+
+// -----------------------------------------------------------------------------
+// (b) Status TEXT / pill-text -> AA --awf-status-*-text variants.
+//     The DOT / BAR / icon SHAPES keep the saturated canonical argo-ui hues
+//     (we only recolor TEXT here; we do NOT touch DAG / timeline FILL shapes).
+// -----------------------------------------------------------------------------
+
+// workflow-status-badge: the .status / .label text inside the pills (selectors
+// confirmed in ui/src/widgets/workflow-status-badge.scss). The argo-ui rule
+// sets `color: white` on the pill fills; we only override the per-state TEXT.
+// Backgrounds (the saturated fills) are intentionally left untouched.
+.status-badge {
+  .Pending {
+    color: var(--awf-status-pending-text, #566a78);
+  }
+  .Running {
+    color: var(--awf-status-running-text, #0a7299);
+  }
+  .Failed,
+  .Error {
+    color: var(--awf-status-failed-text, #be3d47);
+  }
+  .Succeeded {
+    color: var(--awf-status-succeeded-text, #0a7257);
+  }
+  .Unknown {
+    color: var(--awf-status-unknown-text, #556472);
+  }
+}
+
+// argo-ui status-icon. Its real modifiers (confirmed in
+// node_modules/argo-ui/src/styles/elements/utils.scss: --failed/--success/
+// --waiting/--cancelled/--running/--pending/--init, animated via --spin/
+// --slow-spin) set the icon GLYPH color directly, so the icon IS the shape and
+// MUST keep its saturated canonical hue (do NOT recolor the glyph). We only
+// recolor any ADJACENT status TEXT, never the icon itself.
+.status-icon--pending + span,
+.status-icon--pending ~ .status-text {
+  color: var(--awf-status-pending-text, #566a78);
+}
+.status-icon--running + span,
+.status-icon--running ~ .status-text {
+  color: var(--awf-status-running-text, #0a7299);
+}
+.status-icon--failed + span,
+.status-icon--cancelled + span,
+.status-icon--failed ~ .status-text,
+.status-icon--cancelled ~ .status-text {
+  color: var(--awf-status-failed-text, #be3d47);
+}
+.status-icon--success + span,
+.status-icon--success ~ .status-text {
+  color: var(--awf-status-succeeded-text, #0a7257);
+}
+
+// DAG node label / text in graph-panel, and timeline node text: recolor only
+// the LABEL text; leave the node FILL shapes canonical.
+.graph .node text,
+.graph .node .node-label,
+.workflow-dag .node-label,
+.workflow-timeline .timeline-row .label,
+.workflow-timeline text {
+  fill: var(--awf-node-label-text, #556472);
+  color: var(--awf-node-label-text, #556472);
+}
+
+// Non-text shape outlines so low-contrast status fills clear the 3.0 rule.
+// border-COLOR only (never border-width) + an INSET box-shadow ring, so the box
+// never grows. Adding a real outer outer border here is forbidden (it would
+// reflow). The argo-ui status-ICON is a font glyph with no border box, so the
+// ring is applied to filled DOT/PILL shapes only (the status-badge .Pending
+// pill, plus forward-compatible status-dot--* selectors). The icon glyph keeps
+// its saturated canonical hue untouched.
+.status-badge .Pending,
+.status-dot--warning,
+.status-dot--suspended {
+  border-color: $amber-outline;
+  box-shadow: inset 0 0 0 1px $amber-outline;
+}
+
+.status-dot--pending {
+  border-color: $pending-outline;
+  box-shadow: inset 0 0 0 1px $pending-outline;
+}
+
+// -----------------------------------------------------------------------------
+// (c) Focus visibility. outline + outline-offset paint OUTSIDE the box (no
+//     reflow). Override argo-ui's `outline:none` on interactive elements with
+//     higher specificity so keyboard focus is always visible.
+// -----------------------------------------------------------------------------
+:focus-visible {
+  outline: 2px solid $focus-ring;
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.argo-button:focus-visible,
+.tabs__tab:focus-visible,
+[role='tab']:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid $focus-ring;
+  outline-offset: 2px;
+}
+
+// -----------------------------------------------------------------------------
+// (d) Reduced motion. Near-instant timing so animation can't induce motion
+//     sickness, and pin the Running spinner / dot to a steady high-visibility
+//     frame so the Running STATE is still conveyed once motion stops.
+// -----------------------------------------------------------------------------
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  // Freeze the running indicator (timing only) and hold its saturated canonical
+  // hue so the Running state stays legible without motion. No transform/geometry
+  // is changed — `animation: none` is a timing/state property.
+  // argo-ui drives the running spin via .status-icon--spin / --slow-spin
+  // (@keyframes spin, see elements/utils.scss). Freeze them (timing only) so
+  // the Running state still reads without motion; the --running modifier
+  // already holds the saturated canonical running hue, so no recolor needed.
+  .fa-spin,
+  .status-icon--spin,
+  .status-icon--slow-spin,
+  .status-dot--running,
+  .spinner,
+  .argo-spinner {
+    animation: none !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// (e) High contrast preference. Darken text / muted / link / border and status
+//     pill TEXT to the darkest AA+ variants. Saturated tint FILLS may stay.
+// -----------------------------------------------------------------------------
+@media (prefers-contrast: more) {
+  body,
+  .row,
+  .columns,
+  td,
+  th,
+  p,
+  li {
+    color: var(--awf-text-max, #1c2733);
+  }
+
+  .muted,
+  .text-muted,
+  .fa-muted {
+    color: var(--awf-muted-max, #3c4a57);
+  }
+
+  a,
+  a:link,
+  a:visited,
+  .link {
+    color: var(--awf-link-max, #006570);
+  }
+
+  .row,
+  .columns,
+  table,
+  td,
+  th,
+  .argo-table {
+    border-color: var(--awf-border-max, #8a99a8);
+  }
+
+  .status-badge {
+    .Pending {
+      color: var(--awf-status-pending-text-max, #4a3a00);
+    }
+    .Running {
+      color: var(--awf-status-running-text-max, #0f4d70);
+    }
+    .Failed,
+    .Error {
+      color: var(--awf-status-failed-text-max, #7d1c24);
+    }
+    .Succeeded {
+      color: var(--awf-status-succeeded-text-max, #08502a);
+    }
+    .Unknown {
+      color: var(--awf-status-unknown-text-max, #3c4a57);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// (f) Forced colors (Windows High Contrast). Map surfaces to the system
+//     palette, links to LinkText, focus outline to Highlight, and give status
+//     dots a 1px currentColor border so the SHAPE survives when fills are
+//     stripped by the OS. In forced-colors mode the UA already discards author
+//     colors and box-shadow, so a real 1px border is the ONLY way to preserve
+//     the dot shape — this is the single intentional border, scoped here only.
+// -----------------------------------------------------------------------------
+@media (forced-colors: active) {
+  body,
+  .row,
+  .columns,
+  .top-bar,
+  .nav-bar,
+  .argo-table,
+  .white-box {
+    background-color: Canvas;
+    color: CanvasText;
+  }
+
+  a,
+  a:link,
+  a:visited,
+  .link {
+    color: LinkText;
+  }
+
+  :focus-visible,
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  [role='tab']:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .status-icon,
+  .status-dot,
+  .status-dot--pending,
+  .status-dot--warning,
+  .status-dot--suspended,
+  .status-dot--running {
+    border: 1px solid currentColor;
+    forced-color-adjust: none;
+  }
+}

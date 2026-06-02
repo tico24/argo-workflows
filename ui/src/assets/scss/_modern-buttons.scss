@@ -1,0 +1,237 @@
+// _modern-buttons.scss — UI restyle (Loop 5): RE-GROUND the button system in
+// REAL Argo CD. The prior loop INVERTED argo-ui's button roles by repainting
+// the neutral-grey workhorse (.argo-button--base) as a SOLID TEAL primary. That
+// moved away from Argo CD, where teal is a SPARING accent (links / focus /
+// outline-hover) and the workhorse for EVERY toolbar action is a NEUTRAL GREY
+// PILL. This file restores Argo CD's actual treatment.
+//
+// ARGO CD GROUND TRUTH (argo-ui src/styles/elements/buttons.scss):
+//   GEOMETRY (all variants): padding 8px 18px; font-size 13px; font-weight 500;
+//     line-height 1.4; border-radius 24px (FULL PILL — a key Argo signature);
+//     transition .2s. (argo-ui's base also UPPERCASEs labels; we de-uppercase to
+//     sentence case below — Argo Workflows' wording reads as shouting in caps.)
+//   .argo-button--base = NEUTRAL GREY workhorse: bg gray-6 #6d7f8b, text gray-1;
+//     hover lightens to gray-5; focus adds a teal-5 ring; disabled gray-4/gray-6.
+//   bare .argo-button = transparent, teal-6 text, grey hover (low-emphasis).
+//   .argo-button--base-o = OUTLINE: transparent, teal-6 text, inset 1px teal-5;
+//     hover FILLS teal-6 with gray-1 text (the ONE place teal becomes a fill).
+//   .argo-button--link = teal-6 text, transparent, grey hover.
+//   .argo-button--special = the rare accent CTA (Get help) — teal accent fill.
+//   .argo-button--radius = teal-5 round FAB (rare, acceptable).
+//
+// CONSISTENCY FIX: there is now ONE coherent system. Both the toolbar primaries
+// (--base) AND the pagination First/Next buttons resolve to the SAME neutral
+// grey pill (pagination-panel.tsx now uses --base), so the old teal-vs-pale-grey
+// clash is gone. --base-o is the single teal-outline secondary.
+//
+// AA NOTE: Argo's literal gray-6/gray-1 pair is only 3.99:1 (< AA 4.5:1). To
+// keep Bucket-A WCAG AA we nudge the resting neutral fill one step darker
+// (--awf-btn-neutral #5a6b78 = 5.30:1) and keep an AA-clean lighter hover
+// (--awf-btn-neutral-hover #637585 = 4.57:1). Visually it is the same neutral
+// slate pill Argo CD uses; only the contrast headroom changed.
+//
+// Loaded AFTER argo-ui via app-restyle.scss so equal-specificity rules win by
+// source order. Sass hygiene: plain CSS + var() tokens; no @import, no
+// darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// SHARED GEOMETRY — restore Argo CD's pill across ALL buttons so there is a
+// single shape language, and set SENTENCE CASE (de-uppercase argo-ui's base).
+// argo-ui base already sets the geometry; we re-assert it on our token scale so
+// every variant below inherits the same shape + casing.
+// -----------------------------------------------------------------------------
+.argo-button {
+    padding: 8px 18px;
+    border-radius: 14px; // Flatter, more rectangular than a full pill (Argo CD), still pill-ish
+    font-size: var(--awf-font-size-sm, 13px);
+    font-weight: var(--awf-weight-medium, 500);
+    line-height: 1.4;
+    letter-spacing: 0;
+    // SENTENCE CASE (Loop 6 fix, restored from Loop 3): argo-ui's base sets
+    // text-transform:uppercase, but Argo Workflows reads as ALL-CAPS shouting
+    // ("SUBMIT NEW WORKFLOW"). De-uppercase here so every button (and the size
+    // variants below, which inherit this) renders in sentence case. The keyword
+    // `none` removes argo-ui's uppercase rather than re-casing the text, so the
+    // label content is untouched — paint-only.
+    text-transform: none;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+
+    // Bare .argo-button (no variant) = Argo CD's low-emphasis control: transparent
+    // with teal-6 text and a quiet grey hover. We use the AA-clean teal link colour
+    // (#00808e, 4.69:1) so the label is readable on the page.
+    &:not(.argo-button--base):not(.argo-button--base-o):not(.argo-button--link):not(.argo-button--rectangle):not(.argo-button--radius):not(.argo-button--radius-2):not(.argo-button--special) {
+        color: var(--awf-link-aa, #00808e);
+        background-color: transparent;
+        box-shadow: none;
+
+        &:not(.disabled):not([disabled]) {
+            &:hover {
+                color: var(--awf-link-aa, #00808e);
+                background-color: var(--awf-canvas, #dee6eb); // grey hover, Argo-like
+            }
+            &:focus {
+                background-color: var(--awf-canvas, #dee6eb);
+            }
+            &:focus-visible {
+                outline: none;
+                box-shadow: var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// PRIMARY / WORKHORSE = .argo-button--base — NEUTRAL GREY PILL (Argo CD).
+// Every toolbar action (and, via markup, the pagination First/Next buttons) uses
+// this. Hover LIGHTENS (Argo's gray-6 -> gray-5 direction); focus adds the teal-5
+// ring as a non-reflowing box-shadow (Argo expresses focus with a teal-5 border).
+// -----------------------------------------------------------------------------
+.argo-button--base {
+    color: var(--awf-btn-on-neutral, #f8fbfb);
+    background-color: var(--awf-btn-neutral, #5a6b78);
+    box-shadow: none;
+
+    &:not(.disabled):not([disabled]) {
+        &:hover {
+            color: var(--awf-btn-on-neutral, #f8fbfb);
+            background-color: var(--awf-btn-neutral-hover, #637585); // lighter, Argo-like
+        }
+        &:active {
+            background-color: var(--awf-btn-neutral-active, #52606e);
+        }
+        &:focus {
+            color: var(--awf-btn-on-neutral, #f8fbfb);
+            background-color: var(--awf-btn-neutral-hover, #637585);
+            // argo-ui adds `border:1px solid teal-5 !important` on focus which
+            // would reflow by 1px. Neutralise it and express the teal-5 ring as a
+            // non-reflowing box-shadow instead (teal only as the focus marker).
+            border: 0 !important;
+            box-shadow: 0 0 0 1px var(--awf-teal-5, #1fbdd0);
+        }
+        &:focus-visible {
+            box-shadow: 0 0 0 1px var(--awf-teal-5, #1fbdd0), var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// OUTLINE / SECONDARY = .argo-button--base-o — the single teal-outline secondary
+// (Argo CD): transparent with teal-6 text and a 1px teal-5 inset border; on hover
+// it FILLS teal-6 with the near-white label (the one place teal becomes a fill).
+// -----------------------------------------------------------------------------
+.argo-button--base-o {
+    color: var(--awf-link-aa, #00808e);
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--awf-teal-5, #1fbdd0);
+
+    &:not(.disabled):not([disabled]) {
+        &:hover {
+            color: var(--awf-btn-on-neutral, #f8fbfb);
+            // Hover fill uses the AA-clean teal (#008291, white = 4.56:1) rather
+            // than raw teal-6 (#00a2b3, white = 3.08:1) so the label clears AA.
+            background-color: var(--awf-accent-hover, #008291);
+            box-shadow: inset 0 0 0 1px var(--awf-accent-hover, #008291);
+        }
+        &:focus {
+            color: var(--awf-btn-on-neutral, #f8fbfb);
+            background-color: var(--awf-accent-hover, #008291);
+            box-shadow: inset 0 0 0 1px var(--awf-accent-hover, #008291);
+        }
+        &:focus-visible {
+            box-shadow: inset 0 0 0 1px var(--awf-accent-hover, #008291), var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// LINK = .argo-button--link — teal-6 text-only, quiet grey hover (Argo CD).
+// -----------------------------------------------------------------------------
+.argo-button--link {
+    color: var(--awf-link-aa, #00808e);
+    background-color: transparent;
+
+    &:not(.disabled):not([disabled]) {
+        &:hover,
+        &:focus {
+            background-color: var(--awf-canvas, #dee6eb);
+        }
+        &:focus-visible {
+            outline: none;
+            box-shadow: var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// SIZE VARIANTS — keep the pill (Argo's --sm is an 18px-radius pill, --short
+// stays pill-rounded via the base 24px). Re-pad on the grid; casing is inherited
+// (sentence case) from the base .argo-button rule above.
+// -----------------------------------------------------------------------------
+.argo-button--sm {
+    min-width: 60px;
+    padding: 0 14px;
+    border-radius: 12px; // Flatter --sm radius (still pill-ish, less bubbly)
+    line-height: 28px;
+    font-size: var(--awf-font-size-label, 12px);
+    font-weight: var(--awf-weight-medium, 500);
+}
+
+.argo-button--short {
+    padding: 5px 14px;
+    // inherits the 24px pill from .argo-button — keeps the single shape language
+}
+
+// -----------------------------------------------------------------------------
+// SPECIAL = .argo-button--special — the floating "Get help" widget. Loop 6
+// accent rationalize (#4): teal is the SPARING interactive accent (links/focus),
+// not a loud standalone fill, so this no longer paints a solid saturated teal
+// pill. It now resolves to the same NEUTRAL ghost as the rest of the system —
+// surface fill, hairline border, teal-6 link text. The widget-specific
+// anchor-vs-`a:link` specificity fix (and the matching ghost treatment scoped at
+// (0,2,0) so it actually wins) lives in _modern-help-button.scss; this base rule
+// is kept consistent for any non-anchor use of --special.
+// -----------------------------------------------------------------------------
+.argo-button--special {
+    color: var(--awf-link-aa, #00808e);
+    background-color: var(--awf-surface, #ffffff);
+    box-shadow: inset 0 0 0 1px var(--awf-hairline, #ccd6dd);
+    &:not(.disabled) {
+        &:hover,
+        &:focus {
+            color: var(--awf-accent-hover, #008291);
+            background-color: var(--awf-ghost-hover, #f0f7f9);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// DISABLED — faithful to Argo CD: gray-4 fill, gray-6 label, no shadow. (WCAG
+// 1.4.3 exempts inactive controls from the contrast minimum, so reproducing
+// Argo's calm grey-on-grey disabled look is both faithful and compliant.) This
+// replaces the prior solid white-on-dark-grey forced disabled treatment so a
+// disabled pagination button now matches every other disabled button.
+// -----------------------------------------------------------------------------
+.argo-button:disabled,
+.argo-button.disabled {
+    background-color: var(--awf-btn-disabled-bg, #ccd6dd) !important;
+    color: var(--awf-btn-disabled-text, #6d7f8b) !important;
+    box-shadow: none !important;
+    cursor: not-allowed;
+}
+
+// The transparent/text-only variants (bare, link) have no fill when disabled in
+// Argo CD — they just mute the text. Re-assert transparency so they don't pick
+// up the grey disabled fill above and read as a greyed-out label instead.
+.argo-button--link:disabled,
+.argo-button--link.disabled {
+    background-color: transparent !important;
+    color: var(--awf-btn-disabled-text, #6d7f8b) !important;
+}
+
+// -----------------------------------------------------------------------------
+// Round FAB variant stays teal-5 (Argo CD --radius). Modernise only its shadow.
+// -----------------------------------------------------------------------------
+.argo-button--radius {
+    box-shadow: var(--awf-shadow-card, 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1));
+    background-color: var(--awf-teal-5, #1fbdd0);
+}

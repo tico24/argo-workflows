@@ -1,15 +1,16 @@
 @import 'node_modules/argo-ui/src/styles/config';
 
-.wf-filters-container {
-    overflow: visible;
-    position: relative;
-    border-radius: 5px;
-    box-shadow: 1px 1px 3px #8fa4b1;
-    padding: 0 1em 0.75em 1em;
-    margin: 12px 0;
-    background-color: white;
-}
-
+// Filter sidebar — the card SURFACE (overflow / position / margin / background /
+// border / radius / shadow / padding) is the SHARED `.wf-filters-container`
+// definition in app-local _modern-cards.scss (loaded last, wins by source
+// order), so all four filter panels (workflows / cron / templates / reports)
+// stay in lockstep and cannot drift. This file keeps ONLY the page-local layout
+// rhythm not owned by the shared surface.
+//
+// This panel stacks its field groups vertically, so each `p` label group carries
+// a top margin (the workflows-list panel lays its groups out horizontally and
+// therefore does not). Field-label TYPOGRAPHY (the uppercase muted eyebrow on
+// `.wf-filters-container__title`) is owned by _modern-controls.scss.
 .wf-filters-container p {
     margin: 0;
     margin-top: 1em;
@@ -21,8 +22,6 @@
     position: relative;
     width: 100%;
     max-width: 100%;
-    padding: 4px 0;
-    font-size: 15px;
     background-color: transparent;
     border: 0;
 }

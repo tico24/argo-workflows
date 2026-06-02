@@ -1,0 +1,139 @@
+// _modern-spacing.scss — UI modernization (Stage B): an 8px-grid breathing pass.
+//
+// argo-ui ships a dense 2016 rhythm: cramped tab content, tight 8px row gaps,
+// and content that runs edge-to-edge in narrow gutters. This partial opens the
+// layout up onto the --awf-space-* 8px grid so the UI breathes, WITHOUT moving
+// any JS-driven dimension (nav width, top-bar height, graph nodes, the tabs
+// indicator) — every value below is a padding/margin/gutter that argo-ui (or an
+// app-local partial) paints statically and the cascade can reach.
+//
+// Loaded AFTER argo-ui and the modern-* paint partials so it wins by source
+// order. Geometry-within-component only; no functional regression.
+//
+// Sass hygiene: plain CSS + var() tokens. No @import, no darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// Page content column: roomier, consistent side gutters on the centred column.
+// argo-ui `.argo-container` ships `padding: 0 80px` on a fixed 1184px box; that
+// is fine on wide screens but the `--additional-padding` variant is a cramped
+// 0 30px. Lift the tighter variant onto the grid and give the page content a
+// little top breathing room so the first card never kisses the top bar.
+// -----------------------------------------------------------------------------
+.argo-container--additional-padding {
+    padding: 0 var(--awf-space-7, 32px);
+}
+
+// Give the main scroll surface real top breathing room so list/detail pages
+// start with air under the toolbar instead of flush content. Safe: it is inside
+// the fixed page frame, below the (unchanged) top-bar/nav offsets.
+.page__content-wrapper {
+    padding-top: var(--awf-space-4, 16px);
+}
+
+// -----------------------------------------------------------------------------
+// Cards / panels: open up the padding from argo-ui's tight defaults onto the
+// grid. White-box ships 30px (acceptable) but its inner detail rows are dense;
+// the sliding panel body/header/footer are the main detail surfaces and read
+// cramped — give them generous, consistent padding.
+// -----------------------------------------------------------------------------
+.sliding-panel__body {
+    padding: var(--awf-space-7, 32px);
+}
+
+.sliding-panel__header,
+.sliding-panel__footer {
+    padding: 0 var(--awf-space-7, 32px);
+}
+
+// White-box: keep 30px outer padding but de-cramp the uppercase heading rhythm
+// and the detail-row gutter so grouped key/value rows breathe.
+.white-box {
+    padding: var(--awf-space-6, 24px) var(--awf-space-7, 32px);
+
+    &__details {
+        padding: 0 var(--awf-space-2, 8px);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Toolbars / option panels: open the cramped 10px option panel and the dense
+// graph-options panel onto the grid so floating controls have comfortable
+// internal padding and separation.
+// -----------------------------------------------------------------------------
+.graph-options-panel {
+    margin: var(--awf-space-3, 12px);
+    padding: var(--awf-space-3, 12px) var(--awf-space-4, 16px);
+}
+
+// -----------------------------------------------------------------------------
+// List heads: argo-ui table heads use `margin: 8px 0`. Give the header row a
+// touch more separation from the first data row so the column labels read as a
+// distinct band rather than crowding the first card.
+// -----------------------------------------------------------------------------
+.argo-table-list__head {
+    margin: var(--awf-space-2, 8px) 0 var(--awf-space-3, 12px);
+    // Loop 10 (item 1): this partial loads AFTER _modern-type, so its tracking
+    // wins the cascade on the header band. Keep it in lockstep with the type
+    // rule's near-zero tracking so dense column labels fit their meta tracks on
+    // one line (the 0.04em eyebrow tracking pushed Started/Finished past the
+    // single-line clamp and they ellipsed). Spacing only.
+    letter-spacing: var(--awf-tracking-label-tight, 0.01em);
+}
+
+// Form rows: argo-ui uses `margin: 32px 0` which is actually generous; keep it,
+// but ensure the field label sits on the grid with comfortable spacing.
+.argo-form-row {
+    margin: var(--awf-space-6, 24px) 0;
+}
+
+// -----------------------------------------------------------------------------
+// LIST PAGE gutter: the workflows list ships a cramped `padding: 1em` (16px).
+// Keep a roomy 24px top/bottom, but EASE the SIDE gutters to 12px now the nav
+// rail is thin: the list uses a Foundation 12-col grid whose right-side columns
+// are rigid `small-1` fractions, so wider side gutters were starving them and
+// the right-most cells (Started/Finished/Duration/Details/Archived) truncated
+// with ellipses in the default viewport. Narrower side gutters hand those
+// fixed-fraction columns more pixels so they stop truncating. Geometry-only;
+// no markup/grid change.
+// -----------------------------------------------------------------------------
+.workflows-list {
+    padding: var(--awf-space-6, 24px) var(--awf-space-3, 12px);
+}
+
+// -----------------------------------------------------------------------------
+// LIST ROW vertical rhythm + DENSITY: argo-ui rows are a single ~52px line with
+// effectively zero cell padding, so content rides the line box (2016-dense).
+// Give every clickable row real vertical air on the 8px grid — a taller line
+// plus explicit top/bottom cell padding so multi-line NAME / MESSAGE breathe —
+// and a roomier inter-row gap so the cards read as discrete, scannable surfaces.
+// Paint/geometry only; no markup, no row-count change.
+// -----------------------------------------------------------------------------
+// NOTE: the row already carries Foundation's `.row` class (display:flex +
+// flex-wrap:wrap), and argo-ui set line-height:60px purely to vertically centre
+// single-line content. We replace that line-box trick with real flex centring +
+// explicit cell padding, so the row breathes AND stays vertically aligned.
+.argo-table-list__row {
+    margin: var(--awf-space-3, 12px) 0; // 12px inter-row gap (was 10px)
+    line-height: var(--awf-line-snug, 1.4); // release the rigid 52/60px line box
+    padding: var(--awf-space-3, 12px) 0; // real vertical air inside the row
+    align-items: center; // centre status col against the content column (flex)
+}
+
+// Centre the nested content grid (the inner `.row`) too, so the name/meta
+// cells sit on the same baseline band as the status pill.
+//
+// Loop 10: the live markup is `small-10 row` (workflows-row.tsx:58), not
+// `small-11` — the old `.small-11.row` selector was stale/dead and the
+// centring never applied. Target `.small-10.row` so the rule lands.
+.argo-table-list__row .small-10.row {
+    align-items: center;
+}
+
+// -----------------------------------------------------------------------------
+// SIDEBAR FILTER sections: the filter sidebars now render `.wf-filters-container`
+// (see workflow-filters / cron / templates / reports). The legacy
+// `.workflows-list__filters-container` accordion this partial used to space is
+// dead and was removed (no .tsx renders it), so the stale spacing block is gone
+// too. The card rhythm now lives with the shared surface in _modern-cards.scss
+// and the per-group `p` margins in each panel's own scss.
+// -----------------------------------------------------------------------------

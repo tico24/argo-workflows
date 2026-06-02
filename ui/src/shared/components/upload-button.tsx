@@ -13,7 +13,7 @@ export function UploadButton<T>(props: {onUpload: (value: T) => void; onError: (
     }
 
     return (
-        <label style={{marginBottom: 2, marginRight: 2}} className='argo-button argo-button--base-o' key='upload-file'>
+        <label className='argo-button awf-btn-spaced argo-button--base-o' key='upload-file'>
             <input type='file' onChange={e => handleFiles(e.target.files)} style={{display: 'none'}} />
             <i className='fa fa-upload' /> Upload file
         </label>

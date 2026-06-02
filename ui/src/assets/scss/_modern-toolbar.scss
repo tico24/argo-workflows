@@ -1,0 +1,120 @@
+// _modern-toolbar.scss — UI modernization (Loop 4, Stage 3): a consistent
+// button + spacing SYSTEM for toolbars, button groups and the pagination
+// control, plus calm polish on the info-blurb footnote.
+//
+// CONTEXT (verified): the de-pill pass in _modern-buttons.scss dropped the old
+// 24px pill radius (and the visual air it implied) but never added an explicit
+// inter-button gap, so adjacent bare `.argo-button` siblings now share an edge.
+// The headline symptom (D4) is pagination-panel.tsx's two raw
+// `<button className='argo-button argo-button--base-o'>` ('First page' /
+// 'Next page') touching with nothing between them — they are bare siblings
+// inside a <p>, not a flex group, so a sibling-margin rule (not flex `gap`) is
+// the robust, zero-markup fix that also covers every other adjacent pair.
+//
+// argo-ui has NO `.argo-button-group` segmented control anywhere in this app
+// (verified by grep across src/ and node_modules/argo-ui/src/), so the simple
+// adjacency selector is safe app-wide and will not break any deliberately
+// joined control.
+//
+// Loaded AFTER _modern-buttons so it wins by source order. Spacing/geometry
+// only; no markup, no logic, no functional regression.
+//
+// Sass hygiene: plain CSS + var() tokens. No @import, no darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// (D4) ADJACENT-BUTTON GAP. Any time two buttons sit side by side, guarantee a
+//      consistent 8px-grid gap so no two controls ever touch. Covers the
+//      pagination First/Next pair, the log-fields cluster, and every toolbar
+//      that lays out consecutive `.argo-button`s. The shared <Button> wrapper
+//      (button.tsx) ships an inline marginRight:2 / marginBottom:2; this rule's
+//      8px margin-left supersedes that 2px for true adjacency while the inline
+//      marginBottom still gives wrapped rows their vertical air.
+// -----------------------------------------------------------------------------
+.argo-button + .argo-button {
+    margin-left: var(--awf-space-2, 8px);
+}
+
+// -----------------------------------------------------------------------------
+// SHARED <Button> SPACING (replaces the inline-style trap). The shared <Button>
+// wrapper (shared/components/button.tsx) used to hard-code
+// `style={{marginBottom:2, marginRight:2}}`. An inline style cannot be beaten by
+// a class rule, so any partial that needed to zero that margin (e.g. the logs
+// "Log fields" button) was forced to use `!important`, and the 2px nudged
+// Buttons off toolbar baselines (documented logs-layout regression cause). The
+// Button component now applies this CLASS instead of the inline style, so the
+// exact same 2px breathing room is preserved for normal Buttons while remaining
+// overridable by ordinary cascade order — no `!important` needed downstream.
+// The marginRight is harmless next to the `.argo-button + .argo-button` 8px
+// adjacency rule above (that rule's margin-left wins for true side-by-side
+// pairs); the marginBottom gives wrapped Button rows their vertical air.
+// -----------------------------------------------------------------------------
+.argo-button.awf-btn-spaced {
+    margin-bottom: 2px;
+    margin-right: 2px;
+}
+
+// -----------------------------------------------------------------------------
+// CONTROL-HEIGHT NORMALISATION. Toolbars mix `.argo-button` (8px+1.4 line),
+// `.argo-button--sm` (28px line) and the inline `.argo-select`. Give the
+// pagination + toolbar selects the same control height family so a row of
+// mixed controls sits on one clean baseline instead of stair-stepping.
+// (Inputs/selects already box at 38px via _modern-inputs; here we only align
+// the small inline select used inside the pagination footer.)
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// PAGINATION CONTROL. The panel is a single <p> that floated its "results per
+// page" select to the right via `fa-pull-right` and reserved space with an
+// inline style={{paddingBottom:'45px'}}. Promote it to a calm, aligned bar:
+// a flex row that vertically centres the buttons, the warning text and the
+// right-aligned page-size select on one baseline, with consistent 8px rhythm.
+// The `.wf-pagination` class is added markup-only in pagination-panel.tsx.
+// -----------------------------------------------------------------------------
+.wf-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--awf-space-2, 8px);
+    margin: var(--awf-space-4, 16px) 0 var(--awf-space-6, 24px);
+
+    // The buttons already get their adjacency gap from the rule above; with the
+    // flex `gap` here their inherited inline marginRight:2 is harmless. Keep the
+    // First/Next pair tight-but-separated and let the warning text breathe.
+    .argo-button {
+        margin: 0; // flex `gap` owns the spacing; drop any stray inline-ish gap
+    }
+
+    // Push the "results per page" select cluster to the right edge of the bar
+    // without the old float hack, and centre its label + control.
+    .fa-pull-right {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: var(--awf-space-2, 8px);
+        float: none; // neutralise Foundation's fa-pull-right float inside flex
+    }
+
+    // The inline page-size select: a compact boxed control that matches the
+    // button height instead of the full 38px field box.
+    select.small {
+        height: 30px;
+        padding: 0 var(--awf-space-2, 8px);
+        margin: 0;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// INFO-BLURB FOOTNOTE. The shared <Footnote> (footnote.tsx) renders the cron /
+// templates "what is this?" helper text with a flat inline `margin:20px`. Give
+// it a calm, receded treatment: muted text, a hairline top rule separating it
+// from the list above, and consistent 8px-grid spacing so the helper reads as
+// a quiet footer rather than another body paragraph.
+// -----------------------------------------------------------------------------
+.wf-footnote {
+    margin: var(--awf-space-5, 20px) 0 0;
+    padding-top: var(--awf-space-4, 16px);
+    border-top: 1px solid var(--awf-hairline, #ccd6dd);
+    color: var(--awf-muted-aa, #556472);
+    font-size: var(--awf-font-size-sm, 13px);
+    line-height: var(--awf-line-snug, 1.4);
+}

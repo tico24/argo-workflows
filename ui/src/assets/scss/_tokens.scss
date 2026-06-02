@@ -1,0 +1,124 @@
+// _tokens.scss — UI modernization design tokens, LIGHT mode only.
+//
+// Declares ONLY CSS custom properties. No painting selectors live here, so
+// forwarding/using this partial is side-effect free except for the :root block.
+//
+// These mirror the argo-ui theme.scss LIGHT branch. The argo-ui gray/teal ramps
+// already equal the target palette, so these tokens exist mainly to give later
+// restyle steps stable, semantic names (and to carry the AA-corrected text
+// variants that the raw ramps do not provide).
+//
+// Every *-aa / *-text / link / focus value below is verified >= 4.5:1 contrast
+// against its intended background. Do NOT substitute other values.
+
+:root {
+    // --- Surfaces & structure --------------------------------------------
+    --awf-canvas: #dee6eb; // app background (argo gray-3)
+    --awf-surface: #ffffff; // cards, panels, rows
+    --awf-text: #495763; // body text (argo gray-7)
+    --awf-heading: #363c4a; // headings (argo gray-8)
+    --awf-muted: #6d7f8b; // secondary / de-emphasised text
+    --awf-hairline: #ccd6dd; // 1px separators / borders that already exist
+    --awf-accent: #00a2b3; // primary teal accent
+    --awf-active: #1fbdd0; // brighter teal for active/hover chrome
+    --awf-tint-1: #f5fbfd; // faint teal wash
+    --awf-tint-2: #dff6f9; // stronger teal wash
+    --awf-chrome: #1a1c22; // dark chrome (top bar / nav background)
+
+    // --- AA text variants (>= 4.5:1) -------------------------------------
+    --awf-muted-aa: #556472; // muted text that still meets AA on white
+    --awf-link-aa: #00808e; // link teal meeting AA on white
+    --awf-focus-ring: #00808e; // visible focus outline colour
+
+    // --- Nav ------------------------------------------------------------
+    // Thin icon RAIL (argo-ui's original $nav-width 60px). This width is the
+    // single source of truth: the argo-ui nav-bar patch sizes the rail to it,
+    // and _modern-chrome re-points the page frame (.page padding-left,
+    // .page__top-bar left, .workflows-toolbar width) at the same token so they
+    // stay in lockstep. The rail keeps the nicer navy + active state but stays
+    // narrow so it NEVER overlaps or dominates page content.
+    --awf-nav-width: 60px; // argo-ui original $nav-width (thin icon rail)
+    --awf-nav-bg: #0f2733; // Argo CD sidebar navy (NOT near-black, NOT gradient)
+    --awf-nav-inactive: #818d94; // Argo CD $deselected-text muted slate label
+    --awf-nav-active-icon: #fe733f; // Argo CD orange active-icon rail accent
+
+    // --- Status text (AA on light status backgrounds / white) ------------
+    --awf-status-succeeded-text: #0a7257;
+    --awf-status-running-text: #0a7299;
+    --awf-status-failed-text: #be3d47;
+    --awf-status-warning-text: #806100;
+    --awf-status-pending-text: #566a78;
+
+    // --- Accent interaction states ---------------------------------------
+    // Darker teal for the solid-primary hover/active so white labels keep AA.
+    --awf-accent-hover: #008291; // hover for solid teal primary
+    --awf-accent-active: #006e7b; // pressed/active for solid teal primary
+    --awf-ghost-hover: #f0f7f9; // faint teal wash for ghost/secondary hover
+
+    // --- Neutral button system (Argo CD .argo-button--base workhorse) -----
+    // Argo CD's primary toolbar button is a NEUTRAL GREY pill (gray-6 #6d7f8b
+    // bg, gray-1 text), NOT a colour fill. Argo's literal gray-6/gray-1 pair is
+    // only 3.99:1 (below AA 4.5:1), so we nudge the resting fill one step darker
+    // to #5a6b78 (5.30:1) — visually the same neutral slate, but AA-clean — and
+    // keep the "hover lightens" direction with an AA-clean lighter grey.
+    // Nudged toward Argo CD's flatter, slightly-less-saturated neutral grey
+    // (less blue/slate cast) while staying AA-clean against the near-white label.
+    --awf-btn-neutral: #5e6973; // resting neutral button fill (5.39:1 vs gray-1)
+    --awf-btn-neutral-hover: #67727c; // hover: lighter grey, still AA (4.72:1)
+    --awf-btn-neutral-active: #555f68; // pressed: slightly darker (6.26:1)
+    --awf-btn-on-neutral: #f8fbfb; // near-white label on the neutral fill (gray-1)
+    --awf-btn-disabled-bg: #ccd6dd; // Argo gray-4 disabled fill
+    --awf-btn-disabled-text: #6d7f8b; // Argo gray-6 disabled label
+    --awf-teal-5: #1fbdd0; // teal-5 — focus ring + outline border only
+
+    // --- Radius scale -----------------------------------------------------
+    // Modern, flat geometry: small controls 6px, cards/rows 8px.
+    --awf-radius-control: 6px; // buttons, inputs, selects, small chips
+    --awf-radius-card: 8px; // list rows, white-box cards, panels
+    --awf-radius-pill: 999px; // intentional pills (status badges, counters)
+
+    // --- 8px spacing grid -------------------------------------------------
+    --awf-space-1: 4px;
+    --awf-space-2: 8px;
+    --awf-space-3: 12px;
+    --awf-space-4: 16px;
+    --awf-space-5: 20px;
+    --awf-space-6: 24px;
+    --awf-space-7: 32px;
+    --awf-space-8: 40px;
+
+    // --- Type scale -------------------------------------------------------
+    // A clear, modular step set so hierarchy is legible by SIZE (not colour
+    // alone): page title leads, then section heading, sub-heading, body, then
+    // small/meta receding text. Semantic role aliases (page-title/section/sub)
+    // map onto the h-lg/md/sm steps so call sites read intent, not magnitudes.
+    --awf-font-size-meta: 12px; // timestamps / secondary list columns (recedes)
+    --awf-font-size-body: 14px;
+    --awf-font-size-sm: 13px; // dense table rows, secondary controls
+    --awf-font-size-label: 12px; // table headers, eyebrow labels
+    --awf-font-size-label-sm: 11px; // dense list-table column headers (fit one line)
+    --awf-font-size-h-sm: 16px; // sub-heading
+    --awf-font-size-h-md: 18px; // section heading
+    --awf-font-size-h-lg: 22px; // page title
+    // Semantic heading-role aliases (visible SIZE steps for the type scale).
+    --awf-font-size-page-title: var(--awf-font-size-h-lg); // 22px
+    --awf-font-size-section: var(--awf-font-size-h-md); // 18px
+    --awf-font-size-subheading: var(--awf-font-size-h-sm); // 16px
+    --awf-line-body: 1.5;
+    --awf-line-snug: 1.4; // comfortable for headings / pills / meta
+    --awf-line-tight: 1.3;
+    --awf-weight-regular: 400;
+    --awf-weight-medium: 500;
+    --awf-weight-semibold: 600;
+    --awf-tracking-label: 0.04em; // tracking for small uppercase eyebrow labels
+    --awf-tracking-label-tight: 0.01em; // near-zero tracking for dense column headers
+
+    // --- Elevation --------------------------------------------------------
+    // One cohesive soft shadow (replaces stacked 1/2/3px offset drop shadows).
+    --awf-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+    --awf-shadow-card-hover: 0 2px 4px rgba(16, 24, 40, 0.08), 0 4px 10px rgba(16, 24, 40, 0.1);
+    --awf-shadow-pop: 0 4px 16px rgba(16, 24, 40, 0.14); // dropdowns/menus
+
+    // --- Focus ring (teal, painted via box-shadow so it never reflows) ----
+    --awf-focus-ring-shadow: 0 0 0 3px rgba(0, 162, 179, 0.28);
+}

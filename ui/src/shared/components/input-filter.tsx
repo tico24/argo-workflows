@@ -63,13 +63,15 @@ export function InputFilter(props: InputProps) {
                 filterSuggestions={props.filterSuggestions}
                 autoHighlight={props.autoHighlight}
             />
-            <a
-                onClick={() => {
-                    setValue('');
-                    props.onChange('');
-                }}>
-                <i className='fa fa-times-circle' />
-            </a>
+            {value && (
+                <a
+                    onClick={() => {
+                        setValue('');
+                        props.onChange('');
+                    }}>
+                    <i className='fa fa-times-circle' />
+                </a>
+            )}
         </div>
     );
 }

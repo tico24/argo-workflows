@@ -36,21 +36,21 @@ export function WorkflowsSummaryContainer(props: {workflows: Workflow[]}) {
             <div className='row'>
                 <div className='columns small-12 xlarge-6'>
                     <span className='wf-summary-container__subtext'>Pending &nbsp;</span>
-                    <span className='wf-summary-container__others'>{wfSummary && wfSummary.Pending ? wfSummary.Pending : 0}</span>
+                    <span className='wf-summary-container__others wf-summary-container__others--pending'>{wfSummary && wfSummary.Pending ? wfSummary.Pending : 0}</span>
                 </div>
                 <div className='columns small-12 xlarge-6'>
                     <span className='wf-summary-container__subtext'>Succeeded &nbsp;</span>
-                    <span className='wf-summary-container__others'>{wfSummary && wfSummary.Succeeded ? wfSummary.Succeeded : 0}</span>
+                    <span className='wf-summary-container__others wf-summary-container__others--succeeded'>{wfSummary && wfSummary.Succeeded ? wfSummary.Succeeded : 0}</span>
                 </div>
             </div>
             <div className='row'>
                 <div className='columns small-12 xlarge-6'>
                     <span className='wf-summary-container__subtext'>Failed &nbsp;</span>
-                    <span className='wf-summary-container__others'>{wfSummary && wfSummary.Failed ? wfSummary.Failed : 0}</span>
+                    <span className='wf-summary-container__others wf-summary-container__others--failed'>{wfSummary && wfSummary.Failed ? wfSummary.Failed : 0}</span>
                 </div>
                 <div className='columns small-12 xlarge-6'>
                     <span className='wf-summary-container__subtext'>Error &nbsp;</span>
-                    <span className='wf-summary-container__others'>{wfSummary && wfSummary.Error ? wfSummary.Error : 0}</span>
+                    <span className='wf-summary-container__others wf-summary-container__others--error'>{wfSummary && wfSummary.Error ? wfSummary.Error : 0}</span>
                 </div>
             </div>
         </div>

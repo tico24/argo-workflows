@@ -1,0 +1,347 @@
+// _modern-controls.scss — UI restyle (Loop 5, Stage R3): CONTROL CONSISTENCY +
+// SPACING POLISH across the whole app, so every filter / toolbar / dropdown
+// reads as ONE coherent Argo-CD control system.
+//
+// WHY THIS PARTIAL EXISTS (the R3 gap R1/R2 left):
+//   R1 unified the BUTTON system (neutral-grey pill everywhere). R2 rebuilt the
+//   LOGS toolbar on Argo CD's rhythm, where each field carries a small UPPERCASE
+//   muted-grey eyebrow label (Argo CD's `.argo-form-row label` idiom) and every
+//   control sits on one shared height. But the four FILTER panels
+//   (.wf-filters-container: workflows / workflow-template / cron / reports) were
+//   never re-grounded — their field labels (`.wf-filters-container__title`) are
+//   15px and were even pushed to SENTENCE case by _modern-cards.scss:45-49, which
+//   directly contradicts (a) Argo CD's ground truth ("UPPERCASE is pervasive and
+//   load-bearing — form labels are all uppercase 12-13px") and (b) R2's own logs
+//   eyebrow labels. So the app had TWO different field-label treatments for the
+//   same kind of control — exactly the inconsistency R3 must resolve.
+//
+// WHAT THIS DOES (paint/geometry only, no markup, no logic):
+//   1. FIELD LABELS: make every filter-panel field label the SAME small UPPERCASE
+//      muted-grey eyebrow R2 uses in the logs toolbar (12px / 500 / 0.04em /
+//      uppercase / --awf-muted). This wins over the sentence-case rule in
+//      _modern-cards.scss by SOURCE ORDER (loaded after it).
+//   2. CONTROL HEIGHTS: pin the filter inputs / autocompletes / selects /
+//      tags-input to the SAME 34px control height the logs toolbar uses, so a row
+//      of mixed controls (text field, dropdown, date picker, tag box) sits on one
+//      clean baseline instead of stair-stepping.
+//   3. SPACING: give each field a consistent 8px-grid stack (label -> 4px -> control,
+//      field -> 16px -> next field) so the panels share the logs toolbar's density.
+//   4. TOP-BAR FILTER DROPDOWN MENUS: align the `.top-bar__filter-item` rows to the
+//      same control rhythm + hover wash so the Name-filter / phase dropdowns match.
+//
+// Loaded AFTER _modern-cards, _modern-inputs and _modern-logs (see app-restyle),
+// so equal-specificity rules win by source order without raising specificity.
+// Sass hygiene: plain CSS + var() tokens; no @import, no darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// (1) FILTER-PANEL FIELD LABELS = the shared Argo-CD eyebrow.
+//     `.wf-filters-container__title` is the label `<p>` above every filter
+//     control. Re-ground it to the SAME idiom as the logs toolbar's
+//     `.log-menu__label` (UPPERCASE, 12px, 500, muted grey, calm tracking). This
+//     overrides _modern-cards.scss's sentence-case `p { text-transform:none }`
+//     by source order so there is ONE field-label treatment app-wide.
+//
+//     The duplicated `.wf-filters-container .wf-filters-container__title` reach
+//     matches the specificity of the `_modern-cards` `.wf-filters-container p`
+//     rule (0,2,0) so this reliably wins on top of source order, without
+//     resorting to `!important`.
+// -----------------------------------------------------------------------------
+// CRAFT FIX (workflows filter sidebar): the panel previously mixed random font
+// sizes, uppercase + 0.04em tracking (the "stupidly spaced out" eyebrows),
+// stray Foundation column gutters (the "random indentations"), and broken
+// vertical rhythm (labels crashing into the field above). The block below
+// re-grounds the WHOLE sidebar on ONE strict, minimal type scale and one
+// consistent left edge + 8px rhythm, while keeping every control working and
+// the teal focus ring intact.
+//
+// STRICT TYPE SCALE (every sidebar text element maps to exactly one of these):
+//   • Section labels  -> 12px / 600 / letter-spacing normal / sentence case
+//   • Field/control   -> 14px (inputs, selects, tags, date pickers, phase labels)
+//   • Phases count    -> 12px (the right-aligned count badge)
+//   • Summary numbers -> owned by workflows-summary-container.scss
+// All sidebar text inherits the shared body font stack (no divergent family).
+
+.wf-filters-container .wf-filters-container__title {
+    // Section label = ONE size, ONE weight, calm (no tracking), sentence case.
+    margin: var(--awf-space-3, 12px) 0 var(--awf-space-1, 4px);
+    padding: 0;
+    font-family: inherit;
+    font-size: var(--awf-font-size-label, 12px);
+    font-weight: var(--awf-weight-semibold, 600);
+    line-height: 1.2;
+    letter-spacing: normal;
+    text-transform: none;
+    color: var(--awf-muted-aa, #556472);
+}
+
+// The DropDown anchor used for the "Name Contains / Prefix / …" selector is ALSO
+// a `.wf-filters-container__title` but it is interactive (it carries a caret and
+// opens a menu). Keep the eyebrow look but mark it as clickable so it reads as a
+// control, not a static label. It must still carry the SAME 16px top / 4px bottom
+// section-header rhythm as every other eyebrow (the base rule already sets that;
+// we previously zeroed the top margin here, which made this one section sit
+// cramped against the field above it — the panel's uneven vertical rhythm). Keep
+// the shared rhythm and only add the clickable affordance + caret tone.
+.wf-filters-container .top-bar__filter {
+    // The caret used to float at the far end of the full-width eyebrow, reading as
+    // if it belonged to the plain TEXT BOX rendered directly below it (so the box
+    // looked like a misleading dropdown). Shrink the clickable anchor to hug only
+    // its own text + caret (inline-flex, width auto) so the "Name Contains ⌄" unit
+    // reads as one self-contained mode selector that is clearly the LABEL's
+    // affordance, not the box's. Behaviour untouched — still opens the same menu.
+    display: inline-flex;
+
+    .wf-filters-container__title {
+        display: inline-flex;
+        align-items: center;
+        width: auto;
+        max-width: none;
+        cursor: pointer;
+        transition: color 0.15s ease;
+
+        i {
+            color: var(--awf-muted, #6d7f8b);
+            margin-left: var(--awf-space-1, 4px);
+            transition: color 0.15s ease;
+        }
+
+        &:hover {
+            color: var(--awf-text, #495763);
+
+            i {
+                color: var(--awf-text, #495763);
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// (2) FILTER CONTROL HEIGHTS — one shared 34px baseline (matches the logs
+//     toolbar). The filter inputs are:
+//       • InputFilter / NamespaceFilter -> an Autocomplete `.select` wrapping an
+//         `<input className='argo-field'>`  (boxed by _modern-inputs already)
+//       • DataLoaderDropdown            -> an `.argo-select`
+//       • DatePicker                    -> `<input class='argo-field argo-textarea'>`
+//       • TagsInput                     -> `.tags-input` box
+//     _modern-inputs gives the text fields/selects their box + teal focus ring;
+//     here we only NORMALISE their HEIGHT (and the autocomplete wrapper width) so
+//     they line up. Heights are set with box-sizing:border-box so the existing
+//     1px border + padding are absorbed, not added on top.
+// -----------------------------------------------------------------------------
+.wf-filters-container {
+    // (A0) Foundation `.row` carries a NEGATIVE side margin (-15px) that pulls
+    //      its content OUT past the card's 16px padding, so every filter row —
+    //      and notably the Phases list's right-aligned counts — sat hard against
+    //      the card border (overflowing the intended inner gutter). Zero that
+    //      negative margin so the whole filter content respects the card padding
+    //      and nothing touches the right edge. Width auto keeps it full-bleed
+    //      within the padded content box.
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    // (A) ONE consistent left edge. The workflows panel lays its filter blocks
+    //     out as Foundation `.columns`, which inject a 10px small-gutter
+    //     padding-left/right — the "random indentations that take up unnecessary
+    //     space". Zero the gutter so every label + control aligns to the SAME
+    //     left edge as the card padding and uses the full card width. The blocks
+    //     stack on a clean 8px rhythm with a clear gap between each filter.
+    .row > .columns {
+        padding-left: 0;
+        padding-right: 0;
+        margin-bottom: var(--awf-space-4, 16px);
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    // (B) ALL sidebar text uses the shared body font stack (no divergent family)
+    //     and the body 14px control size — covering inputs, selects, tags,
+    //     date-picker fields and the phase rows.
+    .argo-field,
+    .argo-textarea,
+    .argo-select,
+    .select__value,
+    .tags-input,
+    .tags-input__input,
+    .checkbox-filter,
+    .checkbox-filter label {
+        font-family: inherit;
+        font-size: var(--awf-font-size-body, 14px);
+    }
+
+    // The autocomplete wrapper should fill the column so its boxed input is full
+    // width like every other control (argo-ui leaves `.select` shrink-to-fit).
+    .input-filter .select,
+    .input-filter .argo-field {
+        width: 100%;
+    }
+
+    // Shared control height for the boxed text / select controls.
+    .argo-field,
+    .argo-textarea,
+    .argo-select {
+        box-sizing: border-box;
+        height: 34px;
+    }
+
+    // The tags box is a multi-line container; give it the same MINIMUM height and
+    // vertical centring so an empty tag box matches the single-line controls but
+    // can still grow when tags wrap.
+    .tags-input {
+        box-sizing: border-box;
+        min-height: 34px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        border-radius: var(--awf-radius-control, 6px);
+    }
+
+    // (2b) The Workflow-Template / Cron-Workflow filters render an argo-ui custom
+    //      `Select` (DataLoaderDropdown), NOT an `.argo-select`. Out of the box it
+    //      paints a BORDERLESS bottom-line control at 15px with ~8px asymmetric
+    //      padding — so those two fields read completely differently from the
+    //      boxed `.argo-field` text inputs above/below them (the single biggest
+    //      "random sizes / no consistent styling" break in this panel). Re-box the
+    //      `.select__value` so it matches every other control: same 34px height,
+    //      1px hairline box, 6px radius, 14px body text, full width, calm padding,
+    //      and the shared teal focus ring on keyboard focus. Display-only; the
+    //      Select's open/close behaviour and the caret are untouched.
+    .select {
+        width: 100%;
+
+        // Hidden focus-receiver input is fine; the visible value box is what we
+        // restyle into a real boxed control.
+        &__value {
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            height: 34px;
+            padding: 0 28px 0 10px; // room for the caret on the right
+            font-size: var(--awf-font-size-body, 14px);
+            line-height: 1.2;
+            color: var(--awf-text, #495763);
+            background-color: var(--awf-surface, #fff);
+            border: 1px solid var(--awf-hairline, #ccd6dd);
+            border-radius: var(--awf-radius-control, 6px);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        // Keyboard focus lands on the hidden `.select__focus-receiver`; mirror the
+        // shared teal ring onto the visible value box so focus is honest + AA.
+        &__focus-receiver:focus + .select__value {
+            outline: 0;
+            border-color: var(--awf-accent, #00a2b3);
+            box-shadow: var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+        }
+
+        // Caret. argo-ui positions `.select__value-arrow` absolutely at `right: 0`
+        // of the value box, but the `argo-icon-expand-arrow` glyph carries a chunk
+        // of trailing side-bearing inside its advance box, so the VISIBLE chevron
+        // floated ~10px clear of the right border and read as detached / shoved
+        // left. Pin the arrow as a fixed-size, right-aligned glyph box sat at a
+        // small intentional inset from the inner edge, and zero the icon-font's
+        // line-box so the glyph itself (not its advance box) lands neatly at the
+        // right inside edge like a standard select caret. Muted to match the
+        // chrome's chevron tone. Position/paint only — open/close behaviour
+        // untouched, and the value box keeps its 28px right padding so text never
+        // runs under the caret.
+        &__value-arrow {
+            right: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            color: var(--awf-muted, #6d7f8b);
+
+            i {
+                display: block;
+                font-size: 14px;
+                line-height: 1;
+            }
+        }
+    }
+
+    // The date-picker row keeps its inline clear-affordance to the right of the
+    // field; align them on one row with a small gap instead of space-between so
+    // the clear icon sits next to the field, not floated to the panel edge.
+    &__content {
+        justify-content: flex-start;
+        gap: var(--awf-space-2, 8px);
+
+        // React-datepicker wraps the input in its own div; let it fill the row so
+        // the field matches the width of the other controls.
+        .react-datepicker-wrapper {
+            flex: 1;
+        }
+
+        a {
+            display: inline-flex;
+            align-items: center;
+            color: var(--awf-muted, #6d7f8b);
+            cursor: pointer;
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// (3) TOP-BAR FILTER DROPDOWN MENUS. The Name-filter and other `.top-bar__filter`
+//     dropdowns render their options as `.top-bar__filter-item` rows inside the
+//     popover. Give the items consistent padding, the muted body tone, and the
+//     same quiet hover wash the rest of the chrome uses, so the menu rhythm
+//     matches the buttons + fields rather than the raw argo-ui list defaults.
+//     (The popover surface itself — radius + soft pop shadow — is already aligned
+//     in _modern-surfaces `.argo-dropdown__content`.)
+// -----------------------------------------------------------------------------
+.top-bar__filter-item {
+    color: var(--awf-text, #495763);
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+        background-color: var(--awf-ghost-hover, #f0f7f9);
+    }
+
+    // The section-title rows in these menus (e.g. the filter group heading) read
+    // as the same uppercase muted eyebrow used everywhere else.
+    &.title {
+        color: var(--awf-muted, #6d7f8b);
+        text-transform: uppercase;
+        font-size: var(--awf-font-size-label, 12px);
+        font-weight: var(--awf-weight-medium, 500);
+        letter-spacing: var(--awf-tracking-label, 0.04em);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// (4) PHASES FILTER ROWS. The workflows filter sidebar's Phases list renders
+//     [checkbox][colored dot][label][count] rows via the CheckboxFilter component
+//     (`.checkbox-filter__label`). The component scss ellipsis-clipped the longest
+//     phase label ("Succeeded") even though the filter card has room. The card is
+//     wide enough for every phase name (Pending / Running / Succeeded / Failed /
+//     Error) to sit on one line beside its count, so let the label take the room
+//     it needs instead of clamping it.
+//
+//     We keep the row's [checkbox][dot][label][count] layout untouched and only
+//     relax the label so it no longer truncates: the label flexes to fill the
+//     space left by the (auto-margin, right-aligned) count, wraps cleanly if a
+//     future label were ever longer than the rail, and never shows an ellipsis.
+//     The .row's own `nowrap` keeps the dot + count pinned on the same line.
+//     (App-local + a tick of extra specificity so it wins over the component
+//     scss regardless of bundle order.)
+// -----------------------------------------------------------------------------
+.checkbox-filter li > .row .checkbox-filter__label {
+    overflow: visible;
+
+    label {
+        // Size the label to its content and never let it shrink below it: with
+        // flex-shrink 0 (and NO min-width:0 clamp) the longest phase name
+        // ("Succeeded", ~75px) keeps its full width. The card row has slack
+        // (wrap 156px vs ~145px of content) so checkbox + dot + label + the
+        // right-aligned count all fit on one line — no ellipsis, no clip.
+        flex: 0 0 auto;
+        overflow: visible;
+        text-overflow: clip; // belt-and-braces: never ellipsize "Succeeded" et al.
+        white-space: nowrap;
+    }
+}

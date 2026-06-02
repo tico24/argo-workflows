@@ -291,7 +291,7 @@ export function WorkflowsList() {
                             )}
                             <div className='argo-table-list'>
                                 <div className='row argo-table-list__head'>
-                                    <div className='columns small-1 workflows-list__status'>
+                                    <div className='columns small-2 workflows-list__status'>
                                         <input
                                             type='checkbox'
                                             className='workflows-list__status--checkbox'
@@ -309,28 +309,28 @@ export function WorkflowsList() {
                                             }}
                                         />
                                     </div>
-                                    <div className='row small-11'>
-                                        <div className='columns small-2'>NAME</div>
-                                        <div className='columns small-1'>NAMESPACE</div>
+                                    <div className='row small-10'>
+                                        <div className='columns small-2'>Name</div>
+                                        <div className='columns small-1'>Namespace</div>
                                         <div className='columns small-1'>
-                                            STARTED{' '}
+                                            Started{' '}
                                             <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormatStart} setStoredDisplayISOFormat={setStoredDisplayISOFormatStart} />
                                         </div>
                                         <div className='columns small-1'>
-                                            FINISHED{' '}
+                                            Finished{' '}
                                             <TimestampSwitch
                                                 storedDisplayISOFormat={storedDisplayISOFormatFinished}
                                                 setStoredDisplayISOFormat={setStoredDisplayISOFormatFinished}
                                             />
                                         </div>
-                                        <div className='columns small-1'>DURATION</div>
-                                        <div className='columns small-1'>PROGRESS</div>
-                                        <div className='columns small-2'>MESSAGE</div>
-                                        <div className='columns small-1'>DETAILS</div>
-                                        <div className='columns small-1'>ARCHIVED</div>
+                                        <div className='columns small-1'>Duration</div>
+                                        <div className='columns small-1'>Progress</div>
+                                        <div className='columns small-2'>Message</div>
+                                        <div className='columns small-1'>Details</div>
+                                        <div className='columns small-1'>Archived</div>
                                         {(columns || []).map(col => {
                                             return (
-                                                <div className='columns small-1' key={col.key}>
+                                                <div className='columns small-1 workflows-list__custom-col' key={col.key}>
                                                     {col.name}
                                                 </div>
                                             );
@@ -381,7 +381,7 @@ export function WorkflowsList() {
                     )}
                 </div>
             </div>
-            <SlidingPanel isShown={!!sidePanel} onClose={() => setSidePanel('')}>
+            <SlidingPanel isMiddle={true} isShown={!!sidePanel} onClose={() => setSidePanel('')}>
                 {sidePanel === 'submit-new-workflow' && (
                     <WorkflowCreator
                         namespace={nsUtils.getNamespaceWithDefault(namespace)}

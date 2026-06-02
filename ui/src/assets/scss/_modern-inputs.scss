@@ -1,0 +1,82 @@
+// _modern-inputs.scss — UI modernization: boxed inputs with a teal focus ring.
+//
+// argo-ui fields are UNDERLINE-only (`border:0; border-bottom:2px solid border`).
+// Underline fields read as an old Material admin. We convert the text field,
+// textarea and select into real 6px-radius boxes with a calm hairline border
+// and a non-reflowing teal focus ring (box-shadow, not outline, so it paints
+// over the rounded corner cleanly and never shifts layout).
+//
+// LABEL MATH NOTE: the floating placeholder lives in `.argo-field-container`
+// (padding-top:12px) and animates from translateY(6px) to translateY(-25px),
+// i.e. it floats ABOVE the field. Boxing the field adds top padding/border but
+// the floated label sits outside/above the box, so -25px still clears it.
+// Verified visually after build.
+//
+// Loaded AFTER argo-ui and after _overrides-chrome (which only set the field
+// border COLOUR), so these win by source order.
+
+// -----------------------------------------------------------------------------
+// Text field + textarea -> boxed.
+// -----------------------------------------------------------------------------
+.argo-field,
+.argo-textarea {
+    padding: 8px 10px;
+    font-size: var(--awf-font-size-body, 14px);
+    background-color: var(--awf-surface, #fff);
+    // Replace the bottom-only 2px rule with a full 1px box + radius.
+    border: 1px solid var(--awf-hairline, #ccd6dd);
+    border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+    border-radius: var(--awf-radius-control, 6px);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:focus {
+        outline: 0;
+        border-color: var(--awf-accent, #00a2b3);
+        box-shadow: var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+    }
+}
+
+// The boxed action-field variant: just align radius + ring (already bordered).
+.argo-field__with-action-btn {
+    border: 1px solid var(--awf-hairline, #ccd6dd);
+    border-radius: var(--awf-radius-control, 6px);
+
+    &:focus {
+        border-color: var(--awf-accent, #00a2b3);
+        box-shadow: var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Select -> boxed. argo-ui forces `box-shadow:none !important` and a 40px height
+// with a bottom rule; rebuild as a box. Match the !important on focus shadow so
+// the ring is not stripped.
+// -----------------------------------------------------------------------------
+.argo-select {
+    height: 38px;
+    padding: 0 10px;
+    font-size: var(--awf-font-size-body, 14px);
+    background-color: var(--awf-surface, #fff);
+    border: 1px solid var(--awf-hairline, #ccd6dd);
+    border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+    border-radius: var(--awf-radius-control, 6px);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:focus {
+        border: 1px solid var(--awf-accent, #00a2b3);
+        box-shadow: var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28)) !important;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Checkbox: nudge the corner to match the control radius family (was 3px), and
+// use the accent token for the checked fill.
+// -----------------------------------------------------------------------------
+.argo-checkbox input + span {
+    border-radius: 4px;
+    border-color: var(--awf-muted-aa, #556472);
+}
+
+.argo-checkbox input:checked + span {
+    background-color: var(--awf-accent, #00a2b3);
+}

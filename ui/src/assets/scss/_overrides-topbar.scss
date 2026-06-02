@@ -1,0 +1,9 @@
+// Cascade overrides: top bar chrome (paint-level only).
+// Loaded AFTER argo-ui so these win by source order.
+// COLOR / BACKGROUND / BOX-SHADOW ONLY — no box dimensions touched.
+
+// Top-bar filter "selected" dot. argo-ui paints this ::before #009BFF.
+// Re-tint to the accent token; do NOT touch its size/position.
+.top-bar__filter--selected::before {
+    background-color: var(--awf-accent);
+}

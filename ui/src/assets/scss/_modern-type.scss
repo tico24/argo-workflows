@@ -1,0 +1,136 @@
+// _modern-type.scss — UI modernization: a calm 2025 type scale.
+//
+// The single strongest "old admin UI" tell in argo-ui is `text-transform:
+// uppercase` EVERYWHERE (table heads, form labels, top-bar title, white-box h6;
+// buttons & tabs are de-uppercased in their own partials). Removing it plus a
+// tightened, neutral heading scale instantly reads modern.
+//
+// Loaded AFTER argo-ui (and the font-family override). Family stays the
+// native/Inter stack from _font-override.scss.
+
+// -----------------------------------------------------------------------------
+// Body base: 16px -> 14px with a comfortable 1.5 line-height.
+// -----------------------------------------------------------------------------
+body {
+    font-size: var(--awf-font-size-body, 14px);
+    line-height: var(--awf-line-body, 1.5);
+    color: var(--awf-text, #495763);
+}
+
+// -----------------------------------------------------------------------------
+// Headings: argo-ui paints h1/h2 teal and leans on near-identical sizes, so the
+// hierarchy reads as colour-only. Repaint calm/neutral AND give each level an
+// explicit SIZE step (page title 22 / section 18 / sub 16 / 14) so the document
+// outline is legible at a glance. Comfortable ~1.4 line-height for headings.
+// -----------------------------------------------------------------------------
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--awf-heading, #363c4a);
+    font-weight: var(--awf-weight-semibold, 600);
+    line-height: var(--awf-line-snug, 1.4);
+    letter-spacing: -0.01em;
+}
+
+// Visible SIZE steps. Page title leads; section/sub recede in even ~1.2 ratio.
+h1 {
+    font-size: var(--awf-font-size-page-title, 22px); // page title
+    line-height: var(--awf-line-tight, 1.3);
+}
+
+h2 {
+    font-size: var(--awf-font-size-section, 18px); // section heading
+}
+
+h3 {
+    font-size: var(--awf-font-size-subheading, 16px); // sub-heading
+}
+
+h4,
+h5,
+h6 {
+    font-size: var(--awf-font-size-body, 14px); // minor heading / label-ish
+}
+
+// -----------------------------------------------------------------------------
+// De-uppercase the remaining argo-ui small-caps surfaces and give the genuinely
+// "eyebrow" ones (table heads, form labels) calm tracking at sentence case.
+// -----------------------------------------------------------------------------
+
+// Table list column headers: 11px, sentence case, muted, near-zero tracking.
+//
+// Loop 10 (item 1): the header labels share the narrow Foundation `small-1`
+// meta tracks with the data rows; the 0.04em tracking + 12px size pushed
+// "Started"/"Finished" (+ inline clock) past the single-line clamp and they
+// ellipsed. Dropping the head to 11px and trimming tracking toward 0 reduces
+// the TEXT footprint inside the existing track so every label fits on one
+// line, WITHOUT touching the column width — so head stays aligned with rows.
+.argo-table-list__head {
+    font-size: var(--awf-font-size-label-sm, 11px);
+    font-weight: var(--awf-weight-semibold, 600);
+    text-transform: none;
+    letter-spacing: var(--awf-tracking-label-tight, 0.01em);
+    color: var(--awf-muted-aa, #556472);
+}
+
+// Form-row labels: were `13px uppercase`. Sentence case, medium weight, muted.
+.argo-form-row label:not(.argo-label-placeholder) {
+    text-transform: none;
+    font-size: var(--awf-font-size-sm, 13px);
+    font-weight: var(--awf-weight-medium, 500);
+    letter-spacing: 0;
+    color: var(--awf-muted-aa, #556472);
+}
+
+// Top-bar page title: was `.925em uppercase teal-7`. Sentence case, neutral,
+// a touch bolder so the page identity still leads.
+//
+// Loop 6 (#3 all-caps): argo-ui's `.top-bar__title { text-transform:uppercase }`
+// lives in top-bar.scss, which the TopBar component injects at RUNTIME via
+// `require('./top-bar.scss')` + style-loader — so it lands AFTER our statically
+// bundled app-restyle entry and an equal-specificity (0,1,0) rule here loses the
+// cascade. Scope under `.top-bar` for (0,2,0) so the sentence-case wins by
+// specificity regardless of injection order. Paint-only.
+.top-bar .top-bar__title {
+    text-transform: none;
+    font-weight: var(--awf-weight-semibold, 600);
+    font-size: 15px;
+    letter-spacing: 0;
+    color: var(--awf-heading, #363c4a);
+}
+
+// White-box section heading (h6): was `16px uppercase gray-9`. Sentence case at
+// the sub-heading step. (Overrides the generic h6=14px rule above by being more
+// specific + later in source order.)
+.white-box h6 {
+    text-transform: none;
+    font-size: var(--awf-font-size-h-sm, 16px);
+    font-weight: var(--awf-weight-semibold, 600);
+    letter-spacing: 0;
+    color: var(--awf-heading, #363c4a);
+}
+
+// -----------------------------------------------------------------------------
+// META / SECONDARY columns: timestamps + the started/finished/duration/progress
+// cells on a workflow row are reference data, not the headline. Recede them to a
+// smaller muted treatment so the NAME + STATUS lead the scan. Paint-only; the
+// markup/data are untouched. The NAME cell stays at body weight/size and leads.
+// -----------------------------------------------------------------------------
+.workflows-list__timestamp {
+    font-size: var(--awf-font-size-meta, 12px);
+    color: var(--awf-muted-aa, #556472);
+    line-height: var(--awf-line-snug, 1.4);
+}
+
+// Promote the workflow NAME so it leads the row (the name link renders markdown,
+// not .title-text, and the .wf-rows-name wrapper is only present when there is a
+// description — so target the name LINK itself: the first small-2 anchor inside
+// the row's content column). Paint/weight only; the link, its href and handlers
+// are untouched.
+.workflows-list__row-container a.columns.small-2 {
+    color: var(--awf-heading, #363c4a);
+    font-weight: var(--awf-weight-semibold, 600);
+}
