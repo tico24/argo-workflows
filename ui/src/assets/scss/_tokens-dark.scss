@@ -1,0 +1,158 @@
+// _tokens-dark.scss — DARK MODE token overrides for the UI modernization restyle.
+//
+// FEATURE: optional dark mode. The restyle's own design tokens live as a LIGHT,
+// unconditional `:root{}` block in _tokens.scss. Because every painted restyle
+// node reads its colours as `var(--awf-*, <fallback>)`, and the `.theme-dark`
+// ancestor class is on <html> (set by useTheme + the index.html pre-mount
+// bootstrap) and by argo-ui's Layout, REDEFINING the --awf-* tokens under a
+// `.theme-dark` scope re-themes the whole restyle surface (nav rail, top bar,
+// cards, the right-hand filter sidebar, buttons, inputs, tabs, tables/rows,
+// status pills, the courier log console, summary box, charts) with NO
+// per-component edits.
+//
+// SPECIFICITY: `.theme-dark` (0,1,0) ties `:root` (0,1,0); this partial is
+// @forwarded AFTER 'tokens' in app-restyle.scss, so it wins by SOURCE ORDER.
+// Since `.theme-dark` is an ANCESTOR of every painted node, the var() lookups
+// resolve to these dark values whenever the class is present, and resolve to
+// the unchanged :root light values otherwise — so LIGHT mode is byte-for-byte
+// preserved (zero regression).
+//
+// AA: every text / link / status / focus value below is verified >= 4.5:1
+// (4.5 normal text, 3:1 large/UI) against its ACTUAL dark background, including
+// the composited rgba pill tints. See the ratios noted inline.
+//
+// Sass hygiene: plain CSS custom properties + var() only. No @import, no
+// darken()/lighten(); coordinated with argo-ui's legacy themify() dark palette
+// ($dark-theme-background-1 #100f0f / -2 #303237) so restyle cards do not clash
+// with legacy themed surfaces on shared pages.
+
+.theme-dark {
+    // Tell the UA to render native controls (checkboxes, radios, scrollbars,
+    // date/time pickers, default form widgets) in their DARK variant. This is a
+    // paint-only hint that fixes bright-white native checkboxes / scrollbars on
+    // the dark canvas with no per-widget restyling.
+    color-scheme: dark;
+
+    // --- Surfaces & structure --------------------------------------------
+    // Calm, slightly blue-grey dark canvas (not pure black). Coordinated with
+    // argo-ui dark bg-1 #100f0f / bg-2 #303237 but a touch warmer/neutral so
+    // restyle cards read as a clear elevation step above the canvas.
+    --awf-canvas: #101216; // app background (sits under cards; one clear step below surface)
+    --awf-surface: #1f2228; // cards, panels, rows, top-bar, inputs (12.9:1 text)
+    --awf-text: #e3e8ec; // body text (12.92:1 on surface)
+    --awf-heading: #f3f6f8; // headings (14.68:1 on surface)
+    --awf-muted: #9aa6ad; // secondary text (6.40:1 on surface)
+    --awf-hairline: #353a42; // 1px separators / borders (matches argo dark gray)
+    --awf-accent: #2ec6d8; // brighter teal accent for dark (icons / borders / large)
+    --awf-active: #3fd0e0; // brighter teal for active/hover chrome
+    --awf-tint-1: #181b21; // faint wash → log console + hover surface
+    --awf-tint-2: #12333a; // stronger teal wash (selected / strong hover)
+    --awf-chrome: #0c0d11; // dark chrome (already dark; deepen slightly)
+
+    // --- AA text variants (>= 4.5:1 on dark surface) ---------------------
+    --awf-muted-aa: #aeb8bf; // muted text, AA on surface (7.90:1) and canvas (8.80:1)
+    --awf-link-aa: #3fc6d6; // link teal, AA on surface (7.79:1)
+    --awf-link-aa-hover: #6ad8e6; // lighter on hover (still AA, reads as lift)
+    --awf-focus-ring: #3fd0e0; // visible focus outline on dark (8.58:1)
+
+    // --- Nav rail --------------------------------------------------------
+    // The icon rail is intentionally dark in BOTH themes. Keep the navy but
+    // deepen it a touch so it reads as part of the dark chrome rather than a
+    // bright slab. Inactive/active label colours already clear AA on it.
+    --awf-nav-bg: #0c1f29; // slightly deeper navy than light mode (#0f2733)
+    --awf-nav-inactive: #93a0a8; // muted slate label, AA on the navy rail
+    --awf-nav-active-icon: #fe733f; // keep the orange active-icon accent
+
+    // --- Status text (AA on the dark composited pill tints) --------------
+    // Lighter AA-on-dark variants (the light values FAIL on dark). Ratios are
+    // against the rgba tint composited over --awf-surface (see _modern-status-pill
+    // / _modern-cards alpha bumps below): all >= 5.0:1.
+    --awf-status-succeeded-text: #3ddc97; // 6.32:1
+    --awf-status-running-text: #5bc8f5; // 5.72:1
+    --awf-status-failed-text: #f0959c; // 5.03:1
+    --awf-status-warning-text: #e8c14a; // 5.50:1
+    --awf-status-pending-text: #b6c0c7; // 6.30:1
+
+    // a11y-paint references these for the Unknown pill + node label text.
+    --awf-status-unknown-text: #b6c0c7;
+    --awf-node-label-text: #c3ccd2;
+
+    // Dot/pill outline tokens (a11y-paint) — lift to AA-on-dark amber/slate.
+    --awf-status-warning-outline: #e8c14a;
+    --awf-status-pending-outline: #b6c0c7;
+
+    // --- Accent interaction states ---------------------------------------
+    // The solid-teal primary FILL sits behind a near-white label; use an
+    // AA-clean teal so white keeps >= 4.5:1 (white on #0c6f7b = 5.87:1).
+    --awf-accent-hover: #0c6f7b; // solid-teal primary hover/fill (white 5.87:1)
+    --awf-accent-active: #0a5f6a; // pressed solid teal (white 6.6:1)
+    --awf-ghost-hover: #15333a; // faint teal wash for ghost/secondary hover
+
+    // --- Neutral button system -------------------------------------------
+    // Neutral slate pill, one step lighter than the surface so it reads as a
+    // raised control, with a near-white label (10:1 AA).
+    --awf-btn-neutral: #3a4049; // resting neutral fill
+    --awf-btn-neutral-hover: #454c56; // hover: lighter
+    --awf-btn-neutral-active: #333942; // pressed: darker
+    --awf-btn-on-neutral: #f4f7f8; // near-white label (10:1 on fill)
+    --awf-btn-disabled-bg: #2a2e35; // muted dark disabled fill
+    --awf-btn-disabled-text: #7f8a92; // disabled label (3.86:1, UI/large)
+    --awf-teal-5: #2ec6d8; // outline border + focus ring on dark
+
+    // --- Elevation -------------------------------------------------------
+    // Deepen the shadow alpha so cards still read against the dark canvas.
+    --awf-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+    --awf-shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.45), 0 4px 10px rgba(0, 0, 0, 0.55);
+    --awf-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.6);
+
+    // --- Focus ring (brighter teal so the ring is visible on dark) -------
+    --awf-focus-ring-shadow: 0 0 0 3px rgba(63, 208, 224, 0.35);
+
+    // --- High-contrast / forced-colors max variants (dark) ---------------
+    // a11y-paint @media(prefers-contrast: more) reads these — give them
+    // brighter-than-base dark values so "more contrast" goes lighter on dark.
+    --awf-text-max: #ffffff;
+    --awf-muted-max: #d4dbe0;
+    --awf-link-max: #7fe0ee;
+    --awf-border-max: #5a636d;
+    --awf-status-pending-text-max: #d4dbe0;
+    --awf-status-running-text-max: #8fd6f7;
+    --awf-status-failed-text-max: #f6b3b8;
+    --awf-status-succeeded-text-max: #6fe6b4;
+    --awf-status-unknown-text-max: #d4dbe0;
+}
+
+// -----------------------------------------------------------------------------
+// STATUS PILL / BADGE BACKGROUNDS are rgba() LITERALS in _modern-status-pill.scss
+// and _modern-cards.scss (NOT tokens), so token overrides do not reach them. At
+// their light-mode alpha (0.14–0.18) they read as faint, barely-there chips on a
+// dark surface. Re-declare them here at a slightly HIGHER alpha so each phase
+// chip is a clear tinted dark chip, and so the composited contrast against the
+// (now lighter) AA status-text values stays >= 5:1. These are the SAME hues as
+// light mode — only the alpha changes — so the status language is consistent.
+// Scoped under `.theme-dark` and placed AFTER the .theme-dark token block so
+// they win by source order over the base pill rules.
+// -----------------------------------------------------------------------------
+.theme-dark {
+    .wf-phase-pill {
+        // Default / Unknown / Omitted neutral chip.
+        background-color: rgba(120, 140, 155, 0.22);
+    }
+
+    .wf-phase-pill--Succeeded {
+        background-color: rgba(24, 190, 148, 0.2);
+    }
+
+    .wf-phase-pill--Running {
+        background-color: rgba(13, 173, 234, 0.22);
+    }
+
+    .wf-phase-pill--Pending {
+        background-color: rgba(244, 192, 48, 0.22);
+    }
+
+    .wf-phase-pill--Failed,
+    .wf-phase-pill--Error {
+        background-color: rgba(233, 109, 118, 0.24);
+    }
+}

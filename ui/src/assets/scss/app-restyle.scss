@@ -13,6 +13,11 @@
 // so this entry adds ZERO new Sass deprecation warnings.
 
 @forward 'tokens';
+// FEATURE: dark mode token overrides. Forwarded immediately AFTER 'tokens' so
+// the `.theme-dark { --awf-*: ... }` block wins by source order over the equal-
+// specificity `:root` light block whenever the `.theme-dark` ancestor class is
+// present, and is inert (light preserved byte-for-byte) otherwise.
+@forward 'tokens-dark';
 @use 'font-override';
 
 // CASCADE OVERRIDE partials. These load AFTER argo-ui's main.scss (because this
@@ -91,3 +96,12 @@
 // order. Scoped to the page-level row via `.wf-list-layout > .columns` direct
 // children so nested filter rows are never reordered.
 @use 'modern-filters-layout';
+
+// FEATURE: dark-mode toggle control (pinned to the nav rail bottom). Loaded
+// last; paint/geometry of its own fixed box only.
+@use 'theme-toggle';
+
+// FEATURE: dark-mode re-theming for app-local surfaces that hardcode white /
+// argo gray literals (DAG graph-options panels, node-search input, timeline,
+// help/login). Scoped under `.theme-dark`; paint-only; inert in light mode.
+@use 'dark-surfaces';

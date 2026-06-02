@@ -1,0 +1,177 @@
+// _dark-surfaces.scss — DARK MODE re-theming for app-local surfaces that hardcode
+// LIGHT colors (white / argo-color-gray-* literals) and therefore do NOT follow
+// the --awf-* token overrides in _tokens-dark.scss.
+//
+// FEATURE: optional dark mode. A handful of app-local component SCSS files paint
+// `background-color: white` (and argo gray literals) directly instead of via
+// var(--awf-*) — most visibly the workflow-details DAG graph-options panels and
+// the node-search input, which otherwise render as glaring white slabs on the
+// dark canvas. We do NOT edit those baseline files (zero light-mode regression);
+// instead we override the SAME selectors here, scoped under `.theme-dark`, so
+// the surfaces follow the dark theme. Loaded AFTER the component partials by
+// source order; `.theme-dark <sel>` (0,1,1) also out-specifies the bare class.
+//
+// PAINT-ONLY: background / color / border-color / box-shadow / fill / stroke
+// only — no geometry. Sass hygiene: plain CSS + var() tokens, no @import / no
+// darken()/lighten().
+
+.theme-dark {
+    // --- DAG graph-options + render-options floating panels --------------
+    // graph-panel.scss:36 and workflow-dag.scss:10 hardcode white + a light
+    // gray box-shadow. Re-skin them as a dark elevated card.
+    .graph-options-panel,
+    .workflow-dag-render-options-panel {
+        background-color: var(--awf-surface, #1f2228);
+        box-shadow: var(--awf-shadow-pop, 0 4px 16px rgba(0, 0, 0, 0.6));
+        color: var(--awf-text, #e3e8ec);
+
+        a,
+        div.argo-dropdown {
+            color: var(--awf-muted-aa, #aeb8bf);
+
+            &.active {
+                background-color: var(--awf-tint-2, #12333a);
+                border-color: var(--awf-hairline, #353a42);
+            }
+
+            &:hover {
+                color: var(--awf-text, #e3e8ec);
+            }
+        }
+    }
+
+    // The node-search input inside the graph options panel (TextInput → a plain
+    // input). argo-ui themify covers .argo-field, but this raw input needs the
+    // dark surface explicitly so it does not read as a white box.
+    .node-search-bar input,
+    .graph-options-panel input {
+        background-color: var(--awf-tint-1, #181b21);
+        color: var(--awf-text, #e3e8ec);
+        border-color: var(--awf-hairline, #353a42);
+
+        &::placeholder {
+            color: var(--awf-muted, #9aa6ad);
+        }
+    }
+
+    // --- DAG canvas glyph/label legibility on the dark canvas ------------
+    // The graph node-label / edge text default to argo gray-8 (near-black),
+    // invisible on the dark canvas. a11y-paint already retargets .node-label /
+    // edge text via --awf-node-label-text; reassert here for the edge text +
+    // group outlines so the whole graph reads on dark.
+    .graph {
+        .edge text {
+            fill: var(--awf-node-label-text, #c3ccd2);
+        }
+
+        .group rect {
+            stroke: var(--awf-hairline, #353a42);
+        }
+    }
+
+    // --- Workflow timeline surface --------------------------------------
+    // workflow-timeline.scss:5 hardcodes `background: white`.
+    .workflow-timeline {
+        background: var(--awf-surface, #1f2228);
+        color: var(--awf-text, #e3e8ec);
+
+        // DEFECT 2: the top time-axis ruler/header strip stays LIGHT in dark
+        // mode. workflow-timeline.scss:22 hardcodes the header band background
+        // to $argo-color-gray-3 (#DEE6EB, light) and the time labels (the
+        // &__start-line__time, :69) to $argo-color-gray-5 (#8FA4B1). Neither is
+        // a --awf-* token, so the dark theme never reaches them. Re-skin the
+        // header band as a dark chrome strip with light AA labels.
+        &__row--header {
+            // dark strip, one step below the surface so it reads as a ruler
+            background-color: var(--awf-chrome, #0c0d11);
+        }
+
+        &__start-line__time {
+            // light AA time labels on the dark strip (>= 7:1 on #0c0d11)
+            color: var(--awf-muted-aa, #aeb8bf);
+        }
+    }
+
+    // --- DEFECT 1: workflow-details summary node-info attribute grid -----
+    // workflow-details.scss:108 hardcodes the grid text color to
+    // $argo-color-gray-8 (#363C4A, near-black) and the artifact-row text the
+    // same. The panel SURFACE is already dark (argo-ui themify white-box), so
+    // the near-black key/value text renders effectively INVISIBLE on dark.
+    // Neither uses a --awf-* token. Retarget the grid + related node-info text
+    // to the light body/muted tokens so labels + values are legible (AA).
+    .workflow-details__attribute-grid,
+    .workflow-node-info .artifact-row,
+    .workflow-node-info .row.header {
+        color: var(--awf-text, #e3e8ec);
+    }
+
+    // The odd (label) cells read as a secondary "key"; keep them legible-muted
+    // so the value column stays the emphasis. Even cells inherit --awf-text.
+    .workflow-details__attribute-grid > *:nth-child(odd) {
+        color: var(--awf-muted-aa, #aeb8bf);
+    }
+
+    // --- Native form controls -------------------------------------------
+    // Bare native checkboxes/radios (e.g. the workflows-list row-select column)
+    // render as bright white boxes on the dark canvas. `accent-color` is a
+    // paint-only property that tints the native control's fill/checkmark to the
+    // teal accent and lets the UA pick an appropriate dark control surface, so
+    // the boxes read as part of the dark theme without restyling the widget.
+    input[type='checkbox'],
+    input[type='radio'] {
+        accent-color: var(--awf-accent, #2ec6d8);
+    }
+
+    // --- DEFECT 3: pagination "results per page" native <select> --------
+    // PaginationPanel renders a bare native <select class="small"> inside
+    // `.wf-pagination`. Its CONTROL FACE picks up a light/gray UA default on
+    // the dark canvas. Paint the control face dark with light text. (The native
+    // option-list popup is OS-controlled — color-scheme:dark already hints it;
+    // we only style the closed control face here.)
+    .wf-pagination select {
+        background-color: var(--awf-tint-1, #181b21);
+        color: var(--awf-text, #e3e8ec);
+        border-color: var(--awf-hairline, #353a42);
+    }
+
+    // --- DEFECT 4: list row NAME link is muted/dim ----------------------
+    // workflow-template-list.scss / cron-workflow-list.scss set the row name
+    // <Link> to $argo-color-gray-6 (#6D7F8B). On the dark surface that reads
+    // dimmer (~3.5:1) than the sibling namespace/created cells (which use
+    // --awf-text). Bump the name link to the AA link teal so it matches the
+    // legibility of the other row text and reads as the clickable name.
+    .workflow-templates-list__row-container a,
+    .cron-workflows-list__row-container a {
+        color: var(--awf-link-aa, #3fc6d6);
+
+        &:hover {
+            color: var(--awf-link-aa-hover, #6ad8e6);
+        }
+    }
+
+    // --- Help + login standalone surfaces -------------------------------
+    // help.scss:8 / login.scss:44 hardcode #fff. login renders OUTSIDE the
+    // argo-ui Layout, but the .theme-dark class is on <html> so this still
+    // applies.
+    .help-page .white-box,
+    .login__content,
+    .login form {
+        background-color: var(--awf-surface, #1f2228);
+        color: var(--awf-text, #e3e8ec);
+    }
+
+    // --- Collapsed filters edge tab -------------------------------------
+    // The neutral collapse handle (from _modern-filters-layout.scss) sits on
+    // the dark surface with the dark hairline and the dark link-teal hover
+    // accent. The base values come from _tokens-dark.scss / the var() flips,
+    // but the collapsed edge tab needs its surface + border re-pointed so it
+    // reads against the dark canvas, with the quiet teal accent on hover.
+    .filters-collapse-toggle--collapsed {
+        background: var(--awf-surface);
+        border-color: var(--awf-hairline);
+
+        &:hover {
+            border-color: var(--awf-accent);
+        }
+    }
+}

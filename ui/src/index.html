@@ -8,6 +8,26 @@
     <meta name="robots" content="noindex">
     <link rel="icon" type="image/png" href="assets/favicon/favicon-32x32.png" sizes="32x32">
     <link rel="icon" type="image/png" href="assets/favicon/favicon-16x16.png" sizes="16x16">
+    <script>
+        // Pre-mount theme bootstrap: apply the .theme-light/.theme-dark ancestor
+        // paint, so dark mode does not flash light (FOUC). Reads the same
+        // JSON-encoded 'theme' localStorage key as useTheme; default 'auto'.
+        // Resolution mirrors resolveTheme() in
+        // src/shared/use-theme.ts (resolveTheme).
+        (function () {
+            try {
+                var root = document.documentElement;
+                var raw = window.localStorage.getItem('theme');
+                var mode = raw ? JSON.parse(raw) : 'auto';
+                var dark = mode === 'dark' ||
+                    (mode !== 'light' &&
+                        window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                var resolved = dark ? 'dark' : 'light';
+                root.classList.remove('theme-light', 'theme-dark');
+                root.classList.add('theme-' + resolved);
+            } catch (e) { /* ignore: useTheme will apply the class on mount */ }
+        })();
+    </script>
 </head>
 
 <body>
