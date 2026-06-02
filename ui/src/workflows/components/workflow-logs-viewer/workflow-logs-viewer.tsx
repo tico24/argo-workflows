@@ -240,43 +240,55 @@ export function WorkflowLogsViewer({workflow, initialNodeId, initialPodName, con
                     <i className='fa fa-exclamation-triangle' /> Logs for archived workflows may be overwritten by a more recent workflow with the same name.
                 </p>
             )}
-            <div style={{marginBottom: 10}}>
-                <i className='fa fa-box' />{' '}
-                <Autocomplete
-                    items={podNames}
-                    value={(podNames.find(x => x.value === podName) || {label: ''}).label}
-                    onSelect={(_, item) => {
-                        setPodName(item.value);
-                    }}
-                />{' '}
-                /{' '}
-                <Autocomplete
-                    items={containers}
-                    value={candidateContainer}
-                    onSelect={v => {
-                        setCandidateContainer(v);
-                        setContainer(v);
-                    }}
-                    onChange={v => setCandidateContainer(v.target.value)}
-                    renderInput={props => (
-                        <input
-                            {...props}
-                            onKeyUp={event => {
-                                if (event.keyCode === 13) {
-                                    // ENTER, to confirm custom container name input
-                                    setContainer(candidateContainer);
-                                }
+            <div className='log-menu'>
+                <div className='log-menu__group'>
+                    <label className='log-menu__field'>
+                        <span className='log-menu__label'>
+                            <i className='fa fa-box' /> Pod
+                        </span>
+                        <Autocomplete
+                            items={podNames}
+                            value={(podNames.find(x => x.value === podName) || {label: ''}).label}
+                            onSelect={(_, item) => {
+                                setPodName(item.value);
                             }}
                         />
-                    )}
-                />
-                <Button onClick={popupJsonFieldSelector} icon={'exchange-alt'}>
-                    Log Fields
-                </Button>
-                <span className='fa-pull-right'>
-                    <div className='log-menu'>
-                        <i className='fa fa-filter' /> <input type='search' defaultValue={grep} onChange={v => setDebouncedGrep(v.target.value)} placeholder='Filter (regexp)...' />
-                        <i className='fa fa-globe' />{' '}
+                    </label>
+                    <label className='log-menu__field'>
+                        <span className='log-menu__label'>Container</span>
+                        <Autocomplete
+                            items={containers}
+                            value={candidateContainer}
+                            onSelect={v => {
+                                setCandidateContainer(v);
+                                setContainer(v);
+                            }}
+                            onChange={v => setCandidateContainer(v.target.value)}
+                            renderInput={props => (
+                                <input
+                                    {...props}
+                                    onKeyUp={event => {
+                                        if (event.keyCode === 13) {
+                                            // ENTER, to confirm custom container name input
+                                            setContainer(candidateContainer);
+                                        }
+                                    }}
+                                />
+                            )}
+                        />
+                    </label>
+                </div>
+                <div className='log-menu__group log-menu__group--end'>
+                    <label className='log-menu__field'>
+                        <span className='log-menu__label'>
+                            <i className='fa fa-filter' /> Filter
+                        </span>
+                        <input className='log-menu__search' type='search' defaultValue={grep} onChange={v => setDebouncedGrep(v.target.value)} placeholder='Filter (regexp)...' />
+                    </label>
+                    <label className='log-menu__field'>
+                        <span className='log-menu__label'>
+                            <i className='fa fa-globe' /> Timezone
+                        </span>
                         <Autocomplete
                             items={filteredTimezones}
                             value={uiTimezone}
@@ -284,8 +296,11 @@ export function WorkflowLogsViewer({workflow, initialNodeId, initialPodName, con
                             // useEffect ensures UITimezone is also changed
                             onSelect={setTimezone}
                         />
-                    </div>
-                </span>
+                    </label>
+                    <Button className='log-menu__action' onClick={popupJsonFieldSelector} icon={'exchange-alt'}>
+                        Log fields
+                    </Button>
+                </div>
             </div>
             <ErrorNotice error={error} />
             {!loaded ? (

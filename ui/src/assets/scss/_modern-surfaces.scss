@@ -1,0 +1,53 @@
+// _modern-surfaces.scss — UI modernization: list rows + cards.
+//
+// argo-ui rows/cards use a hard offset drop shadow (`1px 2px 3px rgba(0,0,0,.1)`)
+// and a tight 4px radius. We modernise to a single cohesive soft shadow, an 8px
+// radius, a comfortable hover background, and a slightly tighter row height.
+//
+// Supersedes the inset-hairline flattening in _overrides-tables.scss (kept as a
+// no-op stub). Loaded after argo-ui + that stub, so it wins by source order.
+
+// -----------------------------------------------------------------------------
+// List rows: 4px -> 8px radius, cohesive soft shadow, comfortable hover bg,
+// tighter modern row height (60px -> 52px), roomier vertical gap.
+// -----------------------------------------------------------------------------
+.argo-table-list__row {
+    margin: 10px 0;
+    line-height: 52px;
+    border-radius: var(--awf-radius-card, 8px);
+    box-shadow: var(--awf-shadow-card, 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1));
+
+    .title-text {
+        color: var(--awf-heading, #363c4a);
+        font-weight: var(--awf-weight-semibold, 600);
+    }
+
+    // Clickable hover: lift slightly with the cohesive hover shadow + a teal
+    // hairline ring (box-shadow only — no border, no reflow) and a faint wash.
+    .argo-table-list--clickable &:hover {
+        background-color: var(--awf-tint-1, #f5fbfd);
+        box-shadow: var(--awf-shadow-card-hover, 0 2px 4px rgba(16, 24, 40, 0.08), 0 4px 10px rgba(16, 24, 40, 0.1)),
+            inset 0 0 0 1px rgba(0, 162, 179, 0.35);
+    }
+
+    // Keep the selected-row teal tint readable against the new hover.
+    &.selected {
+        background-color: var(--awf-tint-2, #dff6f9);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// White-box card: 4px -> 8px radius, cohesive soft shadow.
+// (Padding/margins left as argo-ui ships them — geometry is fine; the shadow +
+// radius are the modern tell.)
+// -----------------------------------------------------------------------------
+.white-box {
+    border-radius: var(--awf-radius-card, 8px);
+    box-shadow: var(--awf-shadow-card, 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1));
+}
+
+// Dropdown / popover menus: align to the cohesive pop elevation + card radius.
+.argo-dropdown__content {
+    border-radius: var(--awf-radius-control, 6px);
+    box-shadow: var(--awf-shadow-pop, 0 4px 16px rgba(16, 24, 40, 0.14));
+}

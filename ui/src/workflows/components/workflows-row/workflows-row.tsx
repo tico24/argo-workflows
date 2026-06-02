@@ -39,7 +39,7 @@ export function WorkflowsRow(props: WorkflowsRowProps) {
     return (
         <div className='workflows-list__row-container'>
             <div className='row argo-table-list__row'>
-                <div className='columns small-1 workflows-list__status'>
+                <div className='columns small-2 workflows-list__status'>
                     <input
                         type='checkbox'
                         className='workflows-list__status--checkbox'
@@ -51,9 +51,11 @@ export function WorkflowsRow(props: WorkflowsRowProps) {
                             props.select(props.workflow);
                         }}
                     />
-                    <PhaseIcon value={wf.status.phase} />
+                    <span className={'wf-phase-pill wf-phase-pill--' + (wf.status.phase || 'Unknown')}>
+                        <PhaseIcon value={wf.status.phase} /> {wf.status.phase || 'Unknown'}
+                    </span>
                 </div>
-                <div className='small-11 row'>
+                <div className='small-10 row'>
                     <Link
                         to={{
                             pathname: uiUrl(`workflows/${wf.metadata.namespace}/${wf.metadata.name}`),
@@ -64,17 +66,17 @@ export function WorkflowsRow(props: WorkflowsRowProps) {
                             <SuspenseReactMarkdownGfm markdown={markdown} />
                         </div>
                     </Link>
-                    <div className='columns small-1'>{wf.metadata.namespace}</div>
-                    <div className={`columns small-1 ${props.displayISOFormatStart ? 'workflows-list__timestamp' : ''}`}>
+                    <div className='columns small-1 workflows-list__meta'>{wf.metadata.namespace}</div>
+                    <div className={`columns small-1 workflows-list__meta ${props.displayISOFormatStart ? 'workflows-list__timestamp' : ''}`}>
                         <Timestamp date={wf.status.startedAt} displayISOFormat={props.displayISOFormatStart} />
                     </div>
-                    <div className={`columns small-1 ${props.displayISOFormatFinished ? 'workflows-list__timestamp' : ''}`}>
+                    <div className={`columns small-1 workflows-list__meta ${props.displayISOFormatFinished ? 'workflows-list__timestamp' : ''}`}>
                         <Timestamp date={wf.status.finishedAt} displayISOFormat={props.displayISOFormatFinished} />
                     </div>
-                    <div className='columns small-1'>
+                    <div className='columns small-1 workflows-list__meta'>
                         <Ticker>{() => <DurationPanel phase={wf.status.phase} duration={wfDuration(wf.status)} estimatedDuration={wf.status.estimatedDuration} />}</Ticker>
                     </div>
-                    <div className='columns small-1'>{wf.status.progress || '-'}</div>
+                    <div className='columns small-1 workflows-list__meta'>{wf.status.progress || '-'}</div>
                     {/* CSS has text-overflow, but sometimes it's still too long for the column for some reason, so slice it too. 180 chars are not visible on a 4k screen */}
                     <div className='columns small-2'>{wf.status.message?.slice(0, 180) || '-'}</div>
                     <div className='columns small-1'>
@@ -87,11 +89,11 @@ export function WorkflowsRow(props: WorkflowsRowProps) {
                                 className={`workflows-row__action workflows-row__action--${hideDrawer ? 'show' : 'hide'}`}>
                                 {hideDrawer ? (
                                     <span>
-                                        SHOW <i className='fas fa-caret-down' />{' '}
+                                        Show <i className='fas fa-caret-down' />{' '}
                                     </span>
                                 ) : (
                                     <span>
-                                        HIDE <i className='fas fa-caret-up' />
+                                        Hide <i className='fas fa-caret-up' />
                                     </span>
                                 )}
                             </div>
@@ -102,7 +104,7 @@ export function WorkflowsRow(props: WorkflowsRowProps) {
                         // best not to make any assumptions and wait until this data is filled
                         const value = (column.type === 'label' ? wf?.metadata?.labels?.[column.key] : wf?.metadata?.annotations?.[column.key]) ?? 'unknown';
                         return (
-                            <div key={column.name} className='columns small-1'>
+                            <div key={column.name} className='columns small-1 workflows-list__custom-col'>
                                 {value}
                             </div>
                         );

@@ -23,7 +23,7 @@ export function ChatButton() {
 
     return (
         <div style={{position: 'fixed', right: 10, bottom: 10}}>
-            <a href={link.url} className='argo-button argo-button--special' target='_blank' rel='noreferrer'>
+            <a href={link.url} className='argo-button argo-button--special chat-button' target='_blank' rel='noreferrer'>
                 <i className='fas fa-comment-alt' /> {link.name}
             </a>
         </div>

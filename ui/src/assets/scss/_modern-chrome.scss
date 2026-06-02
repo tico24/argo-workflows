@@ -1,0 +1,157 @@
+// _modern-chrome.scss — UI modernization (Stage B): crisp flat nav + top bar.
+//
+// The nav is already flat #1A1C22 from Loop 1 (argo-ui patch). This partial
+// refines the CHROME finish via cascade only: a crisper top-bar hairline + band,
+// modern breadcrumb hover chips, a calmer skewed separator, and a slightly more
+// generous nav active/hover rhythm — all paint/geometry-within-component, none
+// of it touching the JS-shared $nav-width / $top-bar-height dimensions (those
+// are left at 60px / 50px so the page frame + the app toolbar's hardcoded
+// `top: calc(50px * 2)` stay perfectly aligned).
+//
+// Loaded AFTER argo-ui, _overrides-topbar (filter dot), _overrides-chrome
+// (sliding-panel footer hairline) and _modern-type (title de-uppercase), so
+// these win by source order without raising specificity.
+//
+// Sass hygiene: plain CSS + var() tokens. No @import, no darken()/lighten().
+
+// -----------------------------------------------------------------------------
+// TOP BAR: keep it white + flat, but make the bottom edge a crisp single
+// hairline in the palette tone and add comfortable side gutters so the title /
+// breadcrumbs / actions sit on the 8px grid instead of a tight 20px.
+// (Height stays $top-bar-height = 50px — shared with the page frame + toolbar.)
+// -----------------------------------------------------------------------------
+.top-bar {
+    background: var(--awf-surface, #fff);
+    border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+
+    &__left-side {
+        padding-left: var(--awf-space-6, 24px);
+    }
+
+    &__right-side {
+        padding-right: var(--awf-space-6, 24px);
+    }
+}
+
+// Breadcrumb links: modern, calm hover chip (was a hard gray-2 fill) with a
+// control-radius corner and the AA link tone.
+.top-bar__breadcrumbs a {
+    color: var(--awf-link-aa, #00808e);
+    border-radius: var(--awf-radius-control, 6px);
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+        background-color: var(--awf-ghost-hover, #f0f7f9);
+        color: var(--awf-link-aa, #00808e);
+    }
+}
+
+// Skewed separator: soften the hard rotated rule into a calm vertical hairline
+// in the palette tone (keep the subtle skew — it is part of the brand rhythm).
+.top-bar__sep {
+    border-left-color: var(--awf-hairline, #ccd6dd);
+    height: 20px;
+}
+
+// Action menu: a touch more breathing room between top-bar action icons.
+.top-bar__action-menu {
+    gap: var(--awf-space-1, 4px);
+}
+
+// -----------------------------------------------------------------------------
+// CHROME BAND UNIFICATION: the fixed workflows action toolbar sits directly
+// under the top bar (it hardcodes `top: calc(50px * 2)` in argo-ui-land — DO
+// NOT touch that). It already shares the white surface + bottom hairline (see
+// _modern-cards.scss). Here we only align its LEFT gutter to the top-bar gutter
+// (24px) so the two bands read as one continuous chrome band with a common left
+// content edge, instead of the toolbar's content starting 4px in from the bar
+// above it. Right gutter is left at the toolbar's own value (it holds the count
+// + actions which align right). Paint/gutter only — no height/position change.
+// -----------------------------------------------------------------------------
+.workflows-toolbar {
+    padding-left: var(--awf-space-6, 24px);
+}
+
+// -----------------------------------------------------------------------------
+// NAV RAIL WIDTH LOCKSTEP. The rail is reworked in the argo-ui nav-bar patch into
+// a thin navy ICON rail (~60px, icon-only with hover tooltips). argo-ui's page
+// frame derives `.page` padding-left, `.page__top-bar` left and the app's
+// `.workflows-toolbar` width from the compiled `$nav-width: 60px` literal, so we
+// re-point all three at the SAME --awf-nav-width token the patch uses, keeping
+// the content frame perfectly aligned to the rail with one source of truth.
+// The nav-bar.scss patch owns the rail's own colour/layout/active-state; here we
+// only keep the rest of the page aligned to it (no per-item paint duplicated).
+// The --awf-nav-width token is declared in _tokens.scss.
+// -----------------------------------------------------------------------------
+.page {
+    padding-left: var(--awf-nav-width, 60px);
+}
+
+// -----------------------------------------------------------------------------
+// NAV RAIL FULL-HEIGHT GUARD. The navy rail is `position:fixed; top:0; bottom:0`
+// in the nav-bar patch, so it spans the viewport. RE-ASSERT that here app-locally
+// (top/bottom:0 + min-height:100vh) so the rail can never be left short with a
+// white strip below it if a shared-layout edit elsewhere ever perturbs its box —
+// this is the single source of truth for the rail spanning the FULL viewport
+// height. Paint/geometry of the rail's OWN box only; no behaviour change.
+.nav-bar {
+    top: 0;
+    bottom: 0;
+    min-height: 100vh;
+}
+
+.page__top-bar {
+    left: var(--awf-nav-width, 60px);
+}
+
+// The workflows action toolbar is `position:fixed; right:0` with a hardcoded
+// `width: calc(100% - 60px)`; re-point that 60px at the rail token so it spans
+// exactly the content area beside the wider rail (vertical `top` is untouched).
+.workflows-toolbar {
+    width: calc(100% - var(--awf-nav-width, 60px));
+}
+
+// -----------------------------------------------------------------------------
+// NAV VERSION STRING. Argo CD shows a muted version line under the logo; we
+// RESTORE that here (a prior loop hid it with display:none after an earlier loop
+// had let it truncate to "lates..."). The argo-ui nav-bar patch now styles it to
+// WRAP (white-space:normal + overflow-wrap:anywhere) onto two or three short
+// centered lines that fit the 60px rail with no clipping, and carries the full
+// string in a native `title` tooltip. We re-assert the same legible, wrapping
+// treatment app-locally so it wins by source order even if the patch's nowrap
+// past were to linger, and so the version is never clipped in the thin rail.
+//
+// Contrast: the muted slate is lifted to #9aa6ad on the #0f2733 navy rail
+// (~5.9:1) so the 9px text clears WCAG AA for small text.
+// -----------------------------------------------------------------------------
+// Selector carries the parent `.nav-bar__logo` so it outranks the argo-ui
+// nav-bar.scss `.nav-bar__version` rule (which still ships overflow-wrap:anywhere
+// + 9px) regardless of bundle source order — otherwise the patch's "anywhere"
+// wins and the string breaks mid-token again.
+.nav-bar__logo .nav-bar__version {
+    display: block;
+    // The logo block pads 12px each side, leaving the version only ~28px — too
+    // narrow, so even a separator-delimited token like "ddefaca" overflowed and
+    // was chopped mid-word. Pull the version out past that horizontal padding
+    // with matched negative margins so it can use the FULL ~58px rail width, and
+    // keep just 1px side padding. With the wider box the build token
+    // "latest+ddefaca" fits one line and the string wraps once at the '.' into a
+    // tidy "latest+ddefaca" / ".dirty" — no mid-word split.
+    margin: 0 -12px;
+    width: 60px; // span the FULL rail (counteracts the logo's 12px side padding)
+    max-width: 60px;
+    padding: 2px 1px 6px;
+    box-sizing: border-box;
+    font-size: 8px; // each separator token fits the rail width at 8px
+    line-height: 1.3;
+    color: #9aa6ad; // muted slate, AA on the navy rail
+    text-align: center;
+    white-space: normal; // override any nowrap so the string can WRAP
+    // word-break:normal keeps tokens whole (no "ddef/aca" chop); break-word is
+    // only the last resort for a single token wider than the now-full-width box.
+    // The native title tooltip still carries the full string.
+    word-break: normal;
+    overflow-wrap: break-word;
+    text-overflow: clip; // cancel the ellipsis clamp
+    overflow: visible;
+}

@@ -6,5 +6,22 @@
   div:first-child {
     flex: 1;
   }
+
+  // The trailing clear ("x") affordance inherited the teal link colour, which
+  // read as a wrong "green" tick next to the field. A clear/reset control should
+  // be a neutral muted glyph, not an accent colour. Paint only — the <a>'s
+  // clear-on-click behaviour is untouched. (The button is now conditionally
+  // rendered by the component only when the field has a value, so it no longer
+  // shows next to an empty field.)
+  a,
+  a:link,
+  a:visited {
+    color: var(--awf-muted-aa, #556472);
+  }
+
+  a:hover,
+  a:focus {
+    color: var(--awf-text, #495763);
+  }
 }
 

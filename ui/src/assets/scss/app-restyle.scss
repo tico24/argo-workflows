@@ -1,0 +1,85 @@
+// app-restyle.scss — app-local ENTRY for the UI modernization restyle.
+//
+// This is the single file imported by app.tsx (immediately AFTER argo-ui's
+// main.scss). Importing it after argo-ui ensures any painting rules here win by
+// cascade order without changing specificity or geometry.
+//
+// FOUNDATION stage scope: bring in the design tokens and the font override.
+// Later stages add their own painting partials and @forward/@use them here.
+//
+// Rules:
+//   - Use @use / @forward (module system), never @import.
+//   - For any colour math use sass:color, never darken()/lighten().
+// so this entry adds ZERO new Sass deprecation warnings.
+
+@forward 'tokens';
+@use 'font-override';
+
+// CASCADE OVERRIDE partials. These load AFTER argo-ui's main.scss (because this
+// entry is imported after it in app.tsx) and win by source order. Each rule is
+// paint-level only: colour / background / border-color / box-shadow.
+@use 'overrides-topbar';
+@use 'overrides-buttons';
+@use 'overrides-tables';
+@use 'overrides-chrome';
+@use 'overrides-app-strays';
+
+// MODERNIZATION partials (bold, visible). Loaded AFTER the legacy override
+// partials so the new geometry/elevation/type wins by source order. Each builds
+// on the --awf-* tokens (radius / spacing / type / elevation scales). Paint AND
+// layout-within-component geometry is intentionally in play here; no functional
+// regression and nothing visually broken.
+@use 'modern-type';
+@use 'modern-buttons';
+@use 'modern-inputs';
+@use 'modern-tabs';
+@use 'modern-surfaces';
+
+// Stage B modernization: 8px-grid spacing rhythm, cohesive cards / panels /
+// elevation, status pills, and crisp flat nav + top-bar chrome. Loaded after the
+// Stage A modern-* partials so the bolder geometry/elevation wins by source
+// order; each builds on the same --awf-* tokens.
+@use 'modern-spacing';
+@use 'modern-cards';
+@use 'modern-chrome';
+
+// Stage 3 (Loop 4): consistent button + spacing SYSTEM. Adjacent-button gap
+// (fixes D4 touching pagination buttons), normalised pagination control bar,
+// and a calm muted info-blurb footnote. Loaded after modern-buttons/spacing so
+// the adjacency gap and the pagination flex bar win by source order.
+@use 'modern-toolbar';
+
+// Stage 2 modernization: headline workflow-LIST table polish (quiet header band,
+// per-cell breathing) and the readable LABELLED status pill that carries the
+// phase WORD. Loaded after the Stage-B card/surface partials so the pill + table
+// geometry win by source order; both build on the same --awf-* tokens and the
+// AA-verified --awf-status-*-text variants.
+@use 'modern-table';
+@use 'modern-status-pill';
+
+// Stage 1 (Loop 4) modernization: make the workflow Logs view a real terminal
+// console. The true glyph-metric fix is the xterm Terminal-options patch hunk
+// (argo-ui logs-viewer.tsx); this partial is the belt-and-braces monospace
+// guarantee + the calm console surface for the .log-box. Loaded after the table
+// partials so the console surface paint wins by source order.
+@use 'modern-logs';
+
+// Stage R3 (Loop 5): CONTROL CONSISTENCY + SPACING POLISH. Unifies the four
+// filter panels' field labels onto the SAME uppercase muted-grey eyebrow R2 uses
+// in the logs toolbar (resolving the logs-uppercase vs filters-sentence-case
+// inconsistency), pins filter inputs/selects/tags/date-pickers to one shared 34px
+// control height, and aligns the top-bar filter dropdown menus to the same
+// rhythm. Loaded AFTER modern-cards / modern-inputs / modern-logs so the eyebrow
+// label + control-height rules win by source order.
+@use 'modern-controls';
+
+// A11Y PAINT LAYER (Bucket-A, paint-only). Loaded LAST so its AA text colours,
+// focus rings, and reduced-motion / prefers-contrast / forced-colors overrides
+// win the cascade. Markup/ARIA work is deferred to argo-workflows-yu9.
+@use 'a11y-paint';
+
+// Stage 3: fix the floating "Get help" widget's teal-on-teal label. Loaded
+// AFTER a11y-paint so the scoped `.chat-button.argo-button--special` white-label
+// + AA-darkened-fill rule wins by source order as well as by specificity
+// (it must beat the a11y-paint `a:link` teal link colour). Paint-only.
+@use 'modern-help-button';

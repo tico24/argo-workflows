@@ -95,7 +95,7 @@ export function WorkflowFilters(props: WorkflowFilterProps) {
     }
 
     return (
-        <div className='wf-filters-container'>
+        <div className='wf-filters-container wf-filters-container--workflows'>
             <div className='row'>
                 <div className='columns small-2 xlarge-12'>
                     <p className='wf-filters-container__title'>Namespace</p>
@@ -148,7 +148,7 @@ export function WorkflowFilters(props: WorkflowFilterProps) {
                 </div>
                 <div className='columns small-4 xlarge-12'>
                     <p className='wf-filters-container__title'>Phases</p>
-                    <CheckboxFilter selected={props.phases} onChange={props.setPhases} items={phaseItems} type='phase' />
+                    <CheckboxFilter selected={props.phases} onChange={props.setPhases} items={phaseItems} type='phase' showCounts={true} />
                 </div>
                 <div className='columns small-5 xlarge-12'>
                     <p className='wf-filters-container__title'>Created Since</p>
@@ -161,9 +161,11 @@ export function WorkflowFilters(props: WorkflowFilterProps) {
                             todayButton='Today'
                             className='argo-field argo-textarea'
                         />
-                        <a onClick={() => props.setCreatedAfter(undefined)}>
-                            <i className='fa fa-times-circle' />
-                        </a>
+                        {props.createdAfter && (
+                            <a onClick={() => props.setCreatedAfter(undefined)}>
+                                <i className='fa fa-times-circle' />
+                            </a>
+                        )}
                     </div>
                     <p className='wf-filters-container__title'>Finished Before</p>
                     <div className='wf-filters-container__content'>
@@ -175,9 +177,11 @@ export function WorkflowFilters(props: WorkflowFilterProps) {
                             todayButton='Today'
                             className='argo-field argo-textarea'
                         />
-                        <a onClick={() => props.setFinishedBefore(undefined)}>
-                            <i className='fa fa-times-circle' />
-                        </a>
+                        {props.finishedBefore && (
+                            <a onClick={() => props.setFinishedBefore(undefined)}>
+                                <i className='fa fa-times-circle' />
+                            </a>
+                        )}
                     </div>
                 </div>
             </div>

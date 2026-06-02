@@ -28,8 +28,198 @@ index 04e5bd1..58a419e 100644
      RenderReturn,
 -    FormField as FormFieldHOC,
  } from './form/compat';
+diff --git a/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.scss b/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.scss
+index ef3a3d7..78bd4a2 100644
+--- a/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.scss
++++ b/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.scss
+@@ -2,7 +2,8 @@
+ @import 'node_modules/xterm/css/xterm';
+ 
+ .logs-viewer {
+-    font: normal 13px/1.2 'Courier', sans-serif;
++    font: normal 13px/1.2 'Courier New', Courier, 'Liberation Mono', monospace;
++    letter-spacing: normal;
+     line-height: 20px;
+     height: 100%;
+     overflow: hidden;
+diff --git a/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.tsx b/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.tsx
+index fc7bc35..ecddac3 100644
+--- a/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.tsx
++++ b/node_modules/argo-ui/src/components/logs-viewer/logs-viewer.tsx
+@@ -29,6 +29,10 @@ export class LogsViewer extends React.Component<LogsViewerProps> {
+         this.terminal = new Terminal({
+             scrollback: 99999,
+             allowTransparency: true,
++            fontFamily: "'Courier New', Courier, 'Liberation Mono', monospace",
++            fontSize: 13,
++            letterSpacing: 0,
++            lineHeight: 1.2,
+             theme: {
+                 background: 'transparent',
+                 foreground: '#495763',
+diff --git a/node_modules/argo-ui/src/components/nav-bar/nav-bar.scss b/node_modules/argo-ui/src/components/nav-bar/nav-bar.scss
+index afc295f..19a4016 100644
+--- a/node_modules/argo-ui/src/components/nav-bar/nav-bar.scss
++++ b/node_modules/argo-ui/src/components/nav-bar/nav-bar.scss
+@@ -4,45 +4,96 @@ $nav-break-height-md: 900px;
+ $nav-break-height-sm: 746px;
+ 
+ .nav-bar {
++    // Thin navy ICON rail (~60px), keeping argo-ui's original narrow width so it
++    // never overlaps or dominates page content. Width is exposed as the CSS var
++    // --awf-nav-width so the app frame (.page padding-left, .page__top-bar left,
++    // .workflows-toolbar width) can stay in lockstep via the same token.
+     position: fixed;
+     top: 0;
+     left: 0;
+     bottom: 0;
+-    padding-top: 160px;
++    display: flex;
++    flex-direction: column;
++    padding-top: 0;
+     z-index: $nav-z-index;
+-    width: $nav-width;
+-    background: linear-gradient(to bottom, #333, #444, #555, #666, #999);
+-    box-shadow: inset -2px 0 4px 0 rgba(0,0,0,0.59);
++    width: var(--awf-nav-width, 60px);
++    background: #0f2733; // Argo CD navy ($sidebar-bg), NOT near-black, NOT a gradient
++    box-shadow: inset -1px 0 0 0 rgba(0,0,0,0.25);
+ 
+ 
+     &__logo {
+-        position: absolute;
+-        top: 0;
+-        left: 0;
+-        right: 0;
+-        padding: 8px 6px;
++        position: relative;
++        display: flex;
++        flex-direction: column;
++        align-items: center;
++        justify-content: center;
++        flex: 0 0 auto;
++        box-sizing: border-box;
++        // Keep the mark inside the 60px rail: 36px img + 2*12px = 60px, no spill
++        // past the right edge. Transparent fill + clip so no pale box sits behind
++        // the orange octopus on the navy rail (the white notch is gone).
++        padding: 12px 12px 8px;
++        overflow: hidden;
++        background: transparent;
+ 
+         img {
+-            max-width: 104%;
++            // Argo Workflows' ORANGE octopus mark — render UNTOUCHED on the navy
++            // rail (no invert/recolor; orange reads cleanly on #0f2733).
++            width: 36px;
++            max-width: 36px;
+         }
+     }
+ 
++    // Scrollable nav column below the logo block.
++    &__items {
++        flex: 1 1 auto;
++        overflow-y: auto;
++        overflow-x: hidden;
++        padding: 4px 0;
++    }
++
+     &__item {
+         position: relative;
+-        margin: 20px 0;
+-        padding-right: 3px;
+-        font-size: 34px;
+-        color: $white-color;
++        // Thin icon RAIL: each row is icon-only and CENTERED; the full title is
++        // supplied on hover by the wrapping Tooltip, so no inline label is shown.
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        height: 44px;
++        margin: 4px 0;
++        padding: 0;
++        color: #818d94; // Argo CD $deselected-text (muted slate)
+         text-align: center;
+         cursor: pointer;
+         border-left: 3px solid transparent;
++        transition: color 0.15s ease, background-color 0.15s ease;
++
++        &-icon {
++            flex: 0 0 auto;
++            font-size: 22px;
++            text-align: center;
++            transition: color 0.15s ease;
++        }
++
++        // The label markup stays in the DOM (router-shim hunk) but is hidden in
++        // the thin rail; the Tooltip already shows the title on hover.
++        &-label {
++            display: none;
++        }
+ 
+         &.active {
+-            border-color: $argo-color-teal-5;
++            color: $white-color; // active icon brightens to white
++            background-color: rgba(255, 255, 255, 0.04);
++            border-color: $argo-color-teal-5; // calm teal-6 left-border marker
++
++            .nav-bar__item-icon {
++                color: $white-color;
++            }
+         }
+ 
+         &:hover {
+-            color: $argo-color-gray-4;
++            color: $white-color; // label brightens toward white on hover
++            background-color: rgba(255, 255, 255, 0.06);
+         }
+ 
+       &:focus {
+@@ -86,24 +137,30 @@ $nav-break-height-sm: 746px;
+     }
+ 
+     &__version {
+-        font-size: smaller;
+-        color: $argo-color-gray-2;
+-        overflow: hidden;
++        display: block;
++        font-size: 9px;
++        padding: 2px 4px 6px;
++        color: #9aa6ad; // muted slate, centered under the logo (AA ~6.2:1 on navy)
+         text-align: center;
++        line-height: 1.25;
++        // Argo CD shows a muted version under the logo. The full string (e.g.
++        // "latest+sha.dirty") is too wide for the 60px rail on one line, so WRAP
++        // it onto two or three short centered lines and break the long build
++        // token cleanly instead of clipping it to "lates...". The full string is
++        // also carried in a native `title` tooltip (markup hunk above).
++        max-width: 100%;
++        white-space: normal;
++        overflow-wrap: anywhere;
++        word-break: break-word;
++        text-overflow: clip;
++        overflow: visible;
+     }
+ }
+ 
++// COMPACT (>=10 items): tighten the icon-row rhythm a touch in the thin rail.
+ .nav-bar.nav-bar--compact {
+-    .nav-bar__logo {
+-        img {
+-            display: block;
+-            max-width: 85%;
+-            margin: 0 auto;
+-        }
+-    }
+-
+     .nav-bar__item {
+-        margin: 10px 0;
+-        font-size: 25px;
++        height: 36px;
++        margin: 1px 0;
+     }
+ }
 diff --git a/node_modules/argo-ui/src/components/nav-bar/nav-bar.tsx b/node_modules/argo-ui/src/components/nav-bar/nav-bar.tsx
-index 9213aa7..77280ca 100644
+index 9213aa7..06487ea 100644
 --- a/node_modules/argo-ui/src/components/nav-bar/nav-bar.tsx
 +++ b/node_modules/argo-ui/src/components/nav-bar/nav-bar.tsx
 @@ -1,7 +1,7 @@
@@ -41,7 +231,7 @@ index 9213aa7..77280ca 100644
  import {Tooltip} from '../tooltip/tooltip';
  
  require('./nav-bar.scss');
-@@ -21,11 +21,9 @@ export function isActiveRoute(locationPath: string, path: string) {
+@@ -21,13 +21,11 @@ export function isActiveRoute(locationPath: string, path: string) {
  }
  
  export const NavBar: React.FunctionComponent<NavBarProps> = (props: NavBarProps) => {
@@ -54,17 +244,30 @@ index 9213aa7..77280ca 100644
 +    const location = useLocation();
 +    const locationPath = location.pathname;
      const navBarStyle = {
-         ...(props.style?.backgroundColor && {background: `linear-gradient(to bottom, ${props.style?.backgroundColor}, #999`}),
+-        ...(props.style?.backgroundColor && {background: `linear-gradient(to bottom, ${props.style?.backgroundColor}, #999`}),
++        background: props.style?.backgroundColor || '#0f2733',
      };
-@@ -39,7 +37,7 @@ export const NavBar: React.FunctionComponent<NavBarProps> = (props: NavBarProps)
+     return (
+         <div className={classNames('nav-bar', {
+@@ -35,12 +33,15 @@ export const NavBar: React.FunctionComponent<NavBarProps> = (props: NavBarProps)
+         })} style={navBarStyle}>
+             <div className='nav-bar__logo'>
+                 <img src='assets/images/logo.png' alt='Argo'/>
+-                <div className='nav-bar__version'>{props.version && props.version()}</div>
++                <div className='nav-bar__version' ref={(el) => { if (el) { el.setAttribute('title', el.textContent || ''); } }}>{props.version && props.version()}</div>
++            </div>
++            <div className='nav-bar__items'>
                  {(props.items || []).map((item) => (
                      <Tooltip content={item.title} placement='right' arrow={true} key={item.path + item.title}>
                          <div className={classNames('nav-bar__item', { active: isActiveRoute(locationPath, item.path) })}
 -                            onClick={() => context.router.history.push(item.path)}>
+-                            <i className={item.iconClassName}/>
 +                            onClick={() => navigate(item.path)}>
-                             <i className={item.iconClassName}/>
++                            <i className={classNames('nav-bar__item-icon', item.iconClassName)}/>
++                            <span className='nav-bar__item-label'>{item.title}</span>
                          </div>
                      </Tooltip>
+                 ))}
 diff --git a/node_modules/argo-ui/src/context.tsx b/node_modules/argo-ui/src/context.tsx
 index bfa8fda..c04d2c7 100644
 --- a/node_modules/argo-ui/src/context.tsx

@@ -141,17 +141,17 @@ export function CronWorkflowList() {
                             <div className='argo-table-list'>
                                 <div className='row argo-table-list__head'>
                                     <div className='columns small-1' />
-                                    <div className='columns small-2'>NAME</div>
-                                    <div className='columns small-2'>NAMESPACE</div>
-                                    <div className='columns small-1'>TimeZone</div>
-                                    <div className='columns small-1'>SCHEDULES</div>
+                                    <div className='columns small-2'>Name</div>
+                                    <div className='columns small-2'>Namespace</div>
+                                    <div className='columns small-1'>Timezone</div>
+                                    <div className='columns small-1'>Schedules</div>
                                     <div className='columns small-1' />
                                     <div className='columns small-2'>
-                                        CREATED{' '}
+                                        Created{' '}
                                         <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormatCreation} setStoredDisplayISOFormat={setStoredDisplayISOFormatCreation} />
                                     </div>
                                     <div className='columns small-2'>
-                                        NEXT RUN{' '}
+                                        Next run{' '}
                                         <TimestampSwitch
                                             storedDisplayISOFormat={storedDisplayISOFormatNextScheduled}
                                             setStoredDisplayISOFormat={setStoredDisplayISOFormatNextScheduled}

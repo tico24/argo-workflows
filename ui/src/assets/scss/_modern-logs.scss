@@ -1,0 +1,215 @@
+// _modern-logs.scss — UI modernization: make the workflow Logs view read as a
+// real terminal console, not spaced-out proportional text in a floating white box.
+//
+// CONTEXT (verified): the log text is rasterised to a <canvas> by xterm.js 4.19
+// (renderer type "canvas"). The glyph metrics are therefore controlled by the
+// xterm Terminal OPTIONS, not by CSS — so the true D1 fix (a real tight monospace
+// stack + letterSpacing:0 + lineHeight:1.2 + fontSize:13) lives in the
+// patch-package hunk on argo-ui's logs-viewer.tsx `new Terminal({...})`. This
+// partial is the COMPLEMENTARY layer:
+//   1. belt-and-braces: pin a true monospace stack + letter-spacing:normal on the
+//      log surface so the xterm char-measure element and any non-canvas fallback
+//      never inherit our global body line-height / label tracking bleed.
+//   2. turn the bare white `.log-box` into a calm, comfortable console surface.
+//
+// NOTE on log-level coloring: per task rules it is SKIPPED here. xterm paints one
+// canvas with no per-line DOM and no per-token class, so coloring is impossible
+// in pure CSS and would require emitting ANSI escapes in the log pipeline
+// (workflow-logs-viewer.tsx rxjs map) — that is parsing/data-flow logic and is
+// explicitly out of scope. We nail readability only.
+//
+// Paint + surface geometry only; no log line is reflowed or restructured.
+//
+// ISOLATION CONTRACT (LOCKED): the logs toolbar layout oscillated across loops
+// because GLOBAL rules bled into it — the shared .argo-button geometry
+// (_modern-buttons.scss: border-radius/padding/font/line-height/transform), the
+// body type scale (_modern-type.scss body line-height:1.5) and the component's
+// own inline `style={{marginBottom:2,marginRight:2}}` on the Log fields Button.
+// To stop the drift, every box-model + text metric of the toolbar inputs and the
+// Log fields button is declared HERE, locally, so global edits can no longer move
+// it. The single `!important` below is the only justified one: it beats the
+// Button component's INLINE margin (inline > class without !important).
+// Local invariants:
+$awf-log-control-h: 34px; // shared control height for every toolbar control
+$awf-log-radius: var(--awf-radius-control, 6px); // shared control corner
+
+// -----------------------------------------------------------------------------
+// (1) MONOSPACE GUARANTEE. Force a real tight monospace stack and neutralise any
+//     letter-spacing on every log surface and on xterm's own measure element.
+//     High enough specificity (and later source order) to beat _modern-type.scss
+//     body rules and argo-ui's `font: ... 'Courier', sans-serif`.
+// -----------------------------------------------------------------------------
+$awf-mono: 'Courier New', Courier, 'Liberation Mono', monospace;
+
+.log-box,
+.log-box .logs-viewer,
+.log-box .logs-viewer__container,
+.logs-viewer,
+.logs-viewer .xterm,
+.logs-viewer .xterm-char-measure-element {
+    font-family: $awf-mono;
+    letter-spacing: normal;
+    // Do NOT set white-space here — xterm manages the canvas + its overlay
+    // measure element itself; forcing white-space could fight its layout. The
+    // monospace stack + letterSpacing is what fixes the spaced-out look.
+}
+
+// -----------------------------------------------------------------------------
+// (2) CONSOLE SURFACE. The bare white floating box becomes a calm, deliberate
+//     console: a very light terminal surface, a hairline border, a soft 8px
+//     radius, and comfortable padding so log lines breathe. The xterm theme
+//     foreground stays --awf-text (#495763) from the patched Terminal options,
+//     so this reads as an intentional light console rather than a white void.
+// -----------------------------------------------------------------------------
+.log-box {
+    box-sizing: border-box;
+    min-height: 320px; // never collapse if global spacing changes the wrapper
+    background-color: var(--awf-tint-1, #f5fbfd);
+    border: 1px solid var(--awf-hairline, #ccd6dd);
+    border-radius: var(--awf-radius-card, 8px);
+    padding: var(--awf-space-4, 16px);
+    box-shadow: var(--awf-shadow-card, 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1));
+
+    // The xterm viewport fills the box; let it scroll comfortably inside the
+    // padded surface without its own background fighting the console tint.
+    .logs-viewer,
+    .xterm,
+    .xterm-viewport,
+    .xterm-screen {
+        background: transparent;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// (3) LOG TOOLBAR REDESIGN (.log-menu). Previously the toolbar was a bare <div>
+//     laid out by whitespace text-nodes + a fa-pull-right float: the POD /
+//     CONTAINER autocompletes, the loud "Log Fields" pill and the grep/timezone
+//     cluster shared no baseline, no gap and no common control height, and the
+//     raw <input type=search> was an unstyled browser default beside the boxed
+//     autocompletes. We rebuild it on Argo CD's toolbar rhythm: ONE flex row,
+//     fields grouped into a left cluster (Pod / Container) and a right cluster
+//     (Filter / Timezone / Log Fields) pushed apart with margin-auto, every
+//     control on one baseline at a shared height, each field carrying a small
+//     UPPERCASE muted-grey mini-label above it (Argo CD's .argo-form-row label
+//     idiom), and the "Log Fields" action given real separation via the grid gap
+//     instead of crowding the inputs. Inputs adopt Argo CD's field look.
+// -----------------------------------------------------------------------------
+.workflow-logs-viewer .log-menu {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end; // align every control on one BASELINE row
+    gap: var(--awf-space-3, 12px) var(--awf-space-5, 20px);
+    margin-bottom: var(--awf-space-3, 12px);
+
+    // Left vs right field clusters. The right cluster is pushed to the far edge
+    // (margin-left:auto) so Filter / Timezone / Log Fields read as their own
+    // group, well clear of Pod / Container — replacing the old fa-pull-right
+    // float that fought the row.
+    &__group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: var(--awf-space-3, 12px) var(--awf-space-4, 16px);
+    }
+    &__group--end {
+        margin-left: auto;
+    }
+
+    // A field = its uppercase mini-label stacked above the control, so labels
+    // and controls share a vertical rhythm and the controls all bottom-align.
+    &__field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--awf-space-1, 4px);
+        margin: 0; // the element is a <label>; kill the UA default
+    }
+
+    // Small UPPERCASE muted-grey eyebrow label (Argo CD .argo-form-row label).
+    &__label {
+        font-size: var(--awf-font-size-label, 12px);
+        font-weight: var(--awf-weight-medium, 500);
+        letter-spacing: var(--awf-tracking-label, 0.04em);
+        text-transform: uppercase;
+        color: var(--awf-muted, #6d7f8b);
+        line-height: 1.2;
+
+        i {
+            margin-right: var(--awf-space-1, 4px);
+            color: var(--awf-muted, #6d7f8b);
+        }
+    }
+
+    // ALL toolbar controls share one height + one boxed Argo-CD field look so
+    // the autocompletes (rendered as a bare <input> inside .select) and the raw
+    // search input finally match. The autocomplete wrapper is .select; we target
+    // its inner <input> plus the grep search input together.
+    //
+    // ISOLATION: pin EVERY box-model + text metric here. Setting line-height to
+    // the control height and letter-spacing:normal neutralises the global body
+    // line-height (1.5) and any label tracking bleed, so input text stays
+    // vertically centred in the 34px box regardless of future global type edits.
+    .select,
+    .select input,
+    &__search {
+        box-sizing: border-box;
+        height: $awf-log-control-h;
+        line-height: $awf-log-control-h;
+        letter-spacing: normal;
+    }
+
+    .select input,
+    &__search {
+        width: 100%;
+        min-width: 180px;
+        padding: 0 var(--awf-space-3, 12px);
+        font-size: var(--awf-font-size-sm, 13px);
+        color: var(--awf-text, #495763);
+        background-color: var(--awf-surface, #fff);
+        border: 1px solid var(--awf-hairline, #ccd6dd);
+        border-radius: $awf-log-radius;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        -webkit-appearance: none;
+        appearance: none;
+
+        &:focus {
+            outline: 0;
+            border-color: var(--awf-accent, #00a2b3);
+            box-shadow: var(--awf-focus-ring-shadow, 0 0 0 3px rgba(0, 162, 179, 0.28));
+        }
+
+        &::placeholder {
+            color: var(--awf-muted, #6d7f8b);
+        }
+    }
+
+    // The pod/container autocompletes can be a little wider; timezone narrower.
+    &__group:first-child .select {
+        min-width: 220px;
+    }
+
+    // "Log Fields" stays the neutral-grey workhorse pill (Argo CD toolbar action),
+    // sits in its own right-cluster slot, and its baseline matches the 34px
+    // controls. SELF-CONTAINED GEOMETRY: re-declare box-sizing, height,
+    // line-height, padding, radius, font-size/weight, text-transform and the
+    // flex centring locally so the global .argo-button rule
+    // (_modern-buttons.scss: border-radius:14px / padding:8px 18px / font:13px /
+    // line-height:1.4 / transition) can no longer reshape this button — only its
+    // neutral-grey --base FILL is inherited (per the KEEP rule). The `!important`
+    // on margin is REQUIRED to beat the Button component's inline
+    // `style={{marginBottom:2,marginRight:2}}` (inline beats a class otherwise),
+    // which would otherwise nudge the button off the 34px flex baseline.
+    &__action.argo-button {
+        box-sizing: border-box;
+        height: $awf-log-control-h;
+        line-height: $awf-log-control-h;
+        margin: 0 !important; // beat the component's inline 2px margins
+        padding: 0 var(--awf-space-4, 16px);
+        border-radius: $awf-log-radius;
+        font-size: var(--awf-font-size-sm, 13px);
+        font-weight: var(--awf-weight-medium, 500);
+        text-transform: none;
+        display: inline-flex;
+        align-items: center;
+        align-self: flex-end;
+    }
+}

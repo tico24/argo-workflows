@@ -197,7 +197,7 @@ export function WorkflowDetails() {
             .map(actionName => {
                 const workflowOperation = workflowOperationsMap[actionName];
                 return {
-                    title: workflowOperation.title.charAt(0).toUpperCase() + workflowOperation.title.slice(1),
+                    title: workflowOperation.title.charAt(0).toUpperCase() + workflowOperation.title.slice(1).toLowerCase(),
                     iconClassName: workflowOperation.iconClassName,
                     action: () => {
                         if (workflowOperation.title === 'DELETE') {

@@ -20,19 +20,19 @@ export function WorkflowDetailsList(props: WorkflowDetailsList) {
             <div className='row argo-table-list__head'>
                 <div className='columns small-1 workflows-list__status' />
                 <div className='row small-11'>
-                    <div className='columns small-2'>NAME</div>
-                    <div className='columns small-1'>NAMESPACE</div>
+                    <div className='columns small-2'>Name</div>
+                    <div className='columns small-1'>Namespace</div>
                     <div className='columns small-1'>
-                        STARTED <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormatStart} setStoredDisplayISOFormat={setStoredDisplayISOFormatStart} />
+                        Started <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormatStart} setStoredDisplayISOFormat={setStoredDisplayISOFormatStart} />
                     </div>
                     <div className='columns small-1'>
-                        FINISHED <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormatFinished} setStoredDisplayISOFormat={setStoredDisplayISOFormatFinished} />
+                        Finished <TimestampSwitch storedDisplayISOFormat={storedDisplayISOFormatFinished} setStoredDisplayISOFormat={setStoredDisplayISOFormatFinished} />
                     </div>
-                    <div className='columns small-1'>DURATION</div>
-                    <div className='columns small-1'>PROGRESS</div>
-                    <div className='columns small-2'>MESSAGE</div>
-                    <div className='columns small-1'>DETAILS</div>
-                    <div className='columns small-1'>ARCHIVED</div>
+                    <div className='columns small-1'>Duration</div>
+                    <div className='columns small-1'>Progress</div>
+                    <div className='columns small-2'>Message</div>
+                    <div className='columns small-1'>Details</div>
+                    <div className='columns small-1'>Archived</div>
                     {(props.columns || []).map(col => {
                         return (
                             <div className='columns small-1' key={col.key}>

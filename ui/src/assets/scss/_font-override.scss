@@ -1,0 +1,30 @@
+// _font-override.scss — UI modernization restyle.
+//
+// Goal: replace argo-ui's default body font ('Heebo', sans-serif) with a
+// native-first stack while retaining Heebo as a fallback.
+//
+// MECHANISM (why this is a plain `body` rule rather than a Sass `!default`
+// override): the app pulls in argo-ui's CSS via a *JavaScript* import
+// (`import 'argo-ui/src/styles/main.scss'` in app.tsx). Under webpack's
+// sass-loader, every JS `.scss` import is its OWN, independent Sass compilation
+// root. argo-ui's main.scss does `@import './config'`, and config.scss declares
+// `$body-font-family: 'Heebo', sans-serif !default;`. A Sass-variable override
+// living in a *different* compilation root (this app-local file) can never reach
+// argo-ui's compile, so assigning `$body-font-family` here would be inert for
+// argo-ui's `body { font-family: $body-font-family }`.
+//
+// What DOES reliably win: a plain `body { font-family }` declaration emitted
+// from a file imported AFTER argo-ui's main.scss. style-loader injects <style>
+// tags in import order, so this rule (same `body` selector, equal specificity,
+// later in the cascade) overrides argo-ui's. This is paint-level only —
+// font-family is an explicitly permitted property and changes no box geometry.
+//
+// The Sass variable below is also declared so that any future app-local partial
+// that `@use`s this file can reference the same stack symbolically. It does NOT
+// affect argo-ui's compile; the winning change is the `body` rule.
+
+$body-font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Heebo', Roboto, sans-serif;
+
+body {
+    font-family: $body-font-family;
+}

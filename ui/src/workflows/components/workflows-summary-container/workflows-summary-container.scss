@@ -1,45 +1,146 @@
 @import 'node_modules/argo-ui/src/styles/config';
 
+// WORKFLOWS SUMMARY widget — redesigned as a clean aligned stat block on the
+// shared card/surface system (Loop 9, Stage A.1).
+//
+// WHY THE REDESIGN: the old box used three SEPARATE Foundation `.row` grids, so
+// the four phase cells never shared one column track set (Pending|Succeeded and
+// Failed|Error sized independently, leaving ragged vertical seams and the
+// "Succeeded" value wrapping to its own line). The values were also uncolored
+// and the box wore a legacy non-token shadow.
+//
+// FIX (paint/layout only; markup is className-only):
+//   • Card surface system (token border + radius + no legacy shadow, 16px pad).
+//   • Flatten ALL phase cells onto ONE shared 2-col grid by making the legacy
+//     `.row` wrappers `display:contents` so their child `.columns` become direct
+//     grid items in a single track set — all four phase values align on one
+//     right edge with no wrapping.
+//   • Clear hierarchy: big Running number vs small status-colored phase counts.
+//
+// Sass hygiene: var() tokens; no darken()/lighten().
 .wf-summary-container {
-    color:  $argo-color-gray-6;
-    padding: 5px 0px;
-    overflow: visible;
+    color: $argo-color-gray-7;
     position: relative;
-    border-radius: 5px;
-    box-shadow: 1px 1px 3px #8fa4b1;
-    padding: 0 1em 0.75em 1em;
-    margin: 12px 0;
-    background-color: white;
+    margin: var(--awf-space-3, 12px) 0;
+
+    // Card surface system (replaces the legacy 1px 1px 3px #8fa4b1 shadow).
+    background: var(--awf-surface, #fff);
+    border: 1px solid var(--awf-hairline, #ccd6dd);
+    border-radius: var(--awf-radius-card, 8px);
+    box-shadow: none;
+    padding: var(--awf-space-4, 16px);
+
+    // Plain block stack (NOT a grid): the legacy Foundation `.row`/`.columns`
+    // markup is laid out as one clean single-column list of full-width rows that
+    // mirrors the Phases filter list below it — each row reads
+    // "label …………… count" with the count right-aligned at the card's inner
+    // gutter (never touching the border). A deterministic flex/block stack avoids
+    // the grid-track width ambiguity that left the counts bunched mid-card.
+    display: block;
 
     &__title {
+        // Eyebrow header on the 8px rhythm.
         width: 100%;
         max-width: 100%;
-        padding: 8px 0;
-        font-size: 15px;
+        margin: 0 0 var(--awf-space-1, 4px);
+        padding: 0;
+        // Match the filter sidebar's section-label treatment exactly so the whole
+        // left rail reads as one calm system: 12px / 600 / no tracking / sentence
+        // case (was uppercase + 0.04em, the "spaced out" eyebrow).
+        font-size: var(--awf-font-size-label, 12px);
+        font-weight: var(--awf-weight-semibold, 600);
+        letter-spacing: normal;
+        line-height: 1.2;
         background-color: transparent;
         border: 0;
-        margin: 0;
-        margin-top: 1em;
-        color: #6d7f8b;
-        text-transform: uppercase;
+        color: var(--awf-heading, #363c4a);
+        text-transform: none;
+
+        i {
+            color: var(--awf-muted, #6d7f8b);
+        }
     }
 
-    &__text{
-        font-size: 16px;
+    // Each legacy `.row` is just a transparent block wrapper now (no float, no
+    // gutter) so its `.columns` children stack as full-width list rows.
+    .row {
+        display: block;
+        margin: 0;
+    }
+
+    // Each phase cell is a full-width flex row: "label …………… count". The
+    // !important defeats Foundation's `.columns.xlarge-6 { width:50% }` so every
+    // row spans the full card width and space-between pins the count to the
+    // card's inner right gutter — all four counts share ONE clean right edge.
+    &.wf-summary-container .row .columns {
+        box-sizing: border-box;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--awf-space-2, 8px);
+        white-space: nowrap;
+        // Foundation's `.xlarge-6` caps these at `flex:0 0 50%; max-width:50%`,
+        // which (not the width) is what kept the rows half-width and the counts
+        // bunched mid-card. Override all three so each row spans the full width.
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 0 0 100%;
+        min-width: 0;
+        float: none;
+        // Comfortable 4px row rhythm; small right inset keeps the count off the
+        // card border (mirrors the Phases filter rows' breathing room).
+        margin: 0 0 var(--awf-space-1, 4px);
+        padding: 0 var(--awf-space-1, 4px) 0 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    // The "Running workflows" headline reads as the lead stat — value sits right
+    // next to its label (NOT justified to the far edge like the phase rows), and
+    // a hairline below separates the hero from the phase list so the hierarchy
+    // is unmistakable.
+    &.wf-summary-container .row .columns.xlarge-12 {
+        justify-content: flex-start;
+        gap: var(--awf-space-2, 8px);
+        margin-bottom: var(--awf-space-3, 12px);
+        padding-bottom: var(--awf-space-3, 12px);
+        border-bottom: 1px solid var(--awf-hairline, #ccd6dd);
+    }
+
+    &__text {
+        font-size: var(--awf-font-size-body, 14px);
+        color: var(--awf-text, #495763);
     }
 
     &__subtext {
-        font-size: 12px;
+        font-size: var(--awf-font-size-sm, 13px);
+        color: var(--awf-muted-aa, #556472);
     }
 
+    // Lead "Running" stat — prominent but not oversized: a clean headline count
+    // that reads with its label, sized close to the body text around it.
     &__running {
-        font-size: 16px;
-        font-weight: bold;
-        color: #0DADEA;
+        font-size: var(--awf-font-size-h-sm, 16px);
+        font-weight: var(--awf-weight-semibold, 600);
+        color: var(--awf-status-running-text, #0a7299);
     }
 
+    // Phase counts — small, semibold, each in its own status colour.
     &__others {
-        font-size: 12px;
-        font-weight: bold;
+        font-size: var(--awf-font-size-sm, 13px);
+        font-weight: var(--awf-weight-semibold, 600);
+        color: var(--awf-heading, #363c4a);
+
+        &--pending {
+            color: var(--awf-status-pending-text, #566a78);
+        }
+
+        &--succeeded {
+            color: var(--awf-status-succeeded-text, #0a7257);
+        }
+
+        &--failed,
+        &--error {
+            color: var(--awf-status-failed-text, #be3d47);
+        }
     }
 }
