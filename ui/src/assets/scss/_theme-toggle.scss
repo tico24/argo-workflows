@@ -1,0 +1,59 @@
+// _theme-toggle.scss — the dark-mode toggle control.
+//
+// FEATURE: optional dark mode. The toggle is rendered app-side as a Layout child
+// (see app-router.tsx) and pinned to the BOTTOM of the navy icon rail so it lives
+// in the existing chrome without forking argo-ui's nav-bar. It mirrors the rail's
+// icon-button rhythm (muted icon, brighter on hover/focus) and works in BOTH
+// themes because the rail is dark in both.
+//
+// Sass hygiene: plain CSS + var() tokens. No @import, no darken()/lighten().
+
+.theme-toggle {
+    position: fixed;
+    left: 0;
+    bottom: var(--awf-space-3, 12px);
+    // argo-ui's nav rail is z-index 11 ($nav-z-index in config.scss); sit one
+    // above it so the toggle is clickable/visible at the rail's bottom, but well
+    // below the modal/sliding-panel layer.
+    z-index: 12;
+    width: var(--awf-nav-width, 60px);
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: var(--awf-nav-inactive, #818d94);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    transition: color 0.15s ease, background-color 0.15s ease;
+
+    i {
+        // Square the glyph box so the icon optically centres on the rail.
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1em;
+        height: 1em;
+    }
+
+    &:hover,
+    &:focus-visible {
+        // Lift to the active rail accent on hover/focus for a clear affordance.
+        color: var(--awf-active, #1fbdd0);
+        background-color: rgba(255, 255, 255, 0.06);
+    }
+
+    // When an explicit (non-auto) override is active, tint the icon toward the
+    // resolved theme so the current choice is glanceable on the rail.
+    &--light i {
+        color: #f4c542; // warm sun
+    }
+
+    &--dark i {
+        color: #8fb7ff; // cool moon
+    }
+}

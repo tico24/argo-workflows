@@ -22,9 +22,11 @@ import sensors from './sensors';
 import {uiUrl} from './shared/base';
 import {ChatButton} from './shared/components/chat-button';
 import ErrorBoundary from './shared/components/error-boundary';
+import {ThemeToggle} from './shared/components/theme-toggle';
 import {Version} from './shared/models';
 import * as nsUtils from './shared/namespaces';
 import {services} from './shared/services';
+import {useTheme} from './shared/use-theme';
 import userinfo from './userinfo';
 import {Widgets} from './widgets/widgets';
 import workflowEventBindings from './workflow-event-bindings';
@@ -53,6 +55,12 @@ export function AppRouter({popupManager, history, notificationsManager}: {popupM
     const [version, setVersion] = useState<Version>();
     const [namespace, setNamespace] = useState<string>();
     const [navBarBackgroundColor, setNavBarBackgroundColor] = useState<string>();
+    // Theme state lives high in the router so toggling never remounts the route
+    // tree (filter state etc. is preserved). useTheme also writes the
+    // .theme-light/.theme-dark class onto document.documentElement so routes
+    // rendered OUTSIDE the argo-ui Layout (login, widgets, top-level Popup,
+    // notifications) are themed consistently.
+    const [themeMode, setThemeMode, resolvedTheme] = useTheme();
     const setError = (error: Error) => {
         notificationsManager.show({
             content: 'Failed to load version/info ' + error,
@@ -99,6 +107,7 @@ export function AppRouter({popupManager, history, notificationsManager}: {popupM
                         path='*'
                         element={
                             <Layout
+                                theme={resolvedTheme}
                                 navBarStyle={{backgroundColor: navBarBackgroundColor}}
                                 navItems={[
                                     {
@@ -189,6 +198,7 @@ export function AppRouter({popupManager, history, notificationsManager}: {popupM
                                     </Routes>
                                 </ErrorBoundary>
                                 <ChatButton />
+                                <ThemeToggle mode={themeMode} resolved={resolvedTheme} onChange={setThemeMode} />
                                 {version && modals && <ModalSwitch version={version.version} modals={modals} />}
                             </Layout>
                         }
