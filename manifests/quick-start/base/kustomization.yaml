@@ -20,6 +20,7 @@ resources:
   - artifactgc-default-rolebinding.yaml
   - cluster-workflow-template-rbac.yaml
   - artifact-repositories-configmap.yaml
+  - workflow-artifact-repository.yaml
 
 patches:
   - path: overlays/workflow-controller-configmap.yaml

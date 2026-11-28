@@ -20,6 +20,7 @@ rules:
   - clusterworkflowtemplates/finalizers
   - workflowtaskresults
   - workflowtaskresults/finalizers
+  - workflowartifactrepositories
   verbs:
   - get
   - list
@@ -48,6 +49,7 @@ rules:
   - clusterworkflowtemplates/finalizers
   - workflowtaskresults
   - workflowtaskresults/finalizers
+  - workflowartifactrepositories
   verbs:
   - create
   - delete
@@ -83,6 +85,7 @@ rules:
   - workflowtasksets/finalizers
   - workflowtaskresults
   - workflowtaskresults/finalizers
+  - workflowartifactrepositories
   verbs:
   - create
   - delete

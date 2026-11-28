@@ -41,7 +41,8 @@ type Config struct {
 	// KubeConfig specifies a kube config file for the wait & init containers
 	KubeConfig *KubeConfig `json:"kubeConfig,omitempty"`
 
-	// ArtifactRepository contains the default location of an artifact repository for container artifacts
+	// ArtifactRepository contains the default location of an artifact repository for container artifacts.
+	// This is deprecated in v4.2, use a WorkflowArtifactRepository named default in the controller's namespace.
 	ArtifactRepository wfv1.ArtifactRepository `json:"artifactRepository,omitzero"`
 
 	// Namespace is a label selector filter to limit the controller's watch to a specific namespace

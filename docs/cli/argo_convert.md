@@ -4,7 +4,7 @@ convert workflow manifests from legacy format to current format
 
 ### Synopsis
 
-Converts singular schedule, mutex and semaphore fields to the new plural versions, outputting to stdout
+Converts singular schedule, mutex and semaphore fields to the new plural versions, and artifact repository config maps and artifactRepositoryRef keys to WorkflowArtifactRepositories, outputting to stdout
 
 ```
 argo convert FILE... [flags]
@@ -25,6 +25,10 @@ argo convert FILE... [flags]
 # Convert from stdin:
 
   cat workflow.yaml | argo convert -
+
+# Convert artifact repository config maps:
+
+  kubectl get configmap workflow-controller-configmap artifact-repositories -n argo -o yaml | argo convert -
 ```
 
 ### Options

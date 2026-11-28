@@ -16,6 +16,8 @@ type Interface interface {
 	Workflows() WorkflowInformer
 	// WorkflowArtifactGCTasks returns a WorkflowArtifactGCTaskInformer.
 	WorkflowArtifactGCTasks() WorkflowArtifactGCTaskInformer
+	// WorkflowArtifactRepositories returns a WorkflowArtifactRepositoryInformer.
+	WorkflowArtifactRepositories() WorkflowArtifactRepositoryInformer
 	// WorkflowEventBindings returns a WorkflowEventBindingInformer.
 	WorkflowEventBindings() WorkflowEventBindingInformer
 	// WorkflowTaskResults returns a WorkflowTaskResultInformer.
@@ -55,6 +57,11 @@ func (v *version) Workflows() WorkflowInformer {
 // WorkflowArtifactGCTasks returns a WorkflowArtifactGCTaskInformer.
 func (v *version) WorkflowArtifactGCTasks() WorkflowArtifactGCTaskInformer {
 	return &workflowArtifactGCTaskInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// WorkflowArtifactRepositories returns a WorkflowArtifactRepositoryInformer.
+func (v *version) WorkflowArtifactRepositories() WorkflowArtifactRepositoryInformer {
+	return &workflowArtifactRepositoryInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // WorkflowEventBindings returns a WorkflowEventBindingInformer.

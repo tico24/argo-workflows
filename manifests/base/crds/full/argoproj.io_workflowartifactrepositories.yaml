@@ -1,0 +1,628 @@
+# This is an auto-generated file. DO NOT EDIT
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflowartifactrepositories.argoproj.io
+spec:
+  group: argoproj.io
+  names:
+    kind: WorkflowArtifactRepository
+    listKind: WorkflowArtifactRepositoryList
+    plural: workflowartifactrepositories
+    shortNames:
+    - wfar
+    singular: workflowartifactrepository
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          WorkflowArtifactRepository is an artifact repository that workflows can refer to by name.
+          One named "default" is used by workflows that do not set artifactRepositoryRef.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ArtifactRepository represents an artifact repository in which
+              a controller will store its artifacts
+            properties:
+              archiveLogs:
+                description: ArchiveLogs enables log archiving
+                type: boolean
+              artifactory:
+                description: Artifactory stores artifacts to JFrog Artifactory
+                properties:
+                  keyFormat:
+                    description: KeyFormat defines the format of how to store keys
+                      and can reference workflow variables.
+                    type: string
+                  passwordSecret:
+                    description: PasswordSecret is the secret selector to the repository
+                      password
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  repoURL:
+                    description: RepoURL is the url for artifactory repo.
+                    type: string
+                  usernameSecret:
+                    description: UsernameSecret is the secret selector to the repository
+                      username
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
+              azure:
+                description: Azure stores artifact in an Azure Storage account
+                properties:
+                  accountKeySecret:
+                    description: AccountKeySecret is the secret selector to the Azure
+                      Blob Storage account access key
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  blobNameFormat:
+                    description: BlobNameFormat is defines the format of how to store
+                      blob names. Can reference workflow variables
+                    type: string
+                  container:
+                    description: Container is the container where resources will be
+                      stored
+                    type: string
+                  endpoint:
+                    description: Endpoint is the service url associated with an account.
+                      It is most likely "https://<ACCOUNT_NAME>.blob.core.windows.net"
+                    type: string
+                  useSDKCreds:
+                    description: UseSDKCreds tells the driver to figure out credentials
+                      based on sdk defaults.
+                    type: boolean
+                required:
+                - container
+                - endpoint
+                type: object
+              gcs:
+                description: GCS stores artifact in a GCS object store
+                properties:
+                  bucket:
+                    description: Bucket is the name of the bucket
+                    type: string
+                  keyFormat:
+                    description: KeyFormat defines the format of how to store keys
+                      and can reference workflow variables.
+                    type: string
+                  serviceAccountKeySecret:
+                    description: ServiceAccountKeySecret is the secret selector to
+                      the bucket's service account key
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
+              hdfs:
+                description: HDFS stores artifacts in HDFS
+                properties:
+                  addresses:
+                    description: Addresses is accessible addresses of HDFS name nodes
+                    items:
+                      type: string
+                    type: array
+                  dataTransferProtection:
+                    description: |-
+                      DataTransferProtection is the protection level for HDFS data transfer.
+                      It corresponds to the dfs.data.transfer.protection configuration in HDFS.
+                    type: string
+                  force:
+                    description: Force copies a file forcibly even if it exists
+                    type: boolean
+                  hdfsUser:
+                    description: |-
+                      HDFSUser is the user to access HDFS file system.
+                      It is ignored if either ccache or keytab is used.
+                    type: string
+                  krbCCacheSecret:
+                    description: |-
+                      KrbCCacheSecret is the secret selector for Kerberos ccache
+                      Either ccache or keytab can be set to use Kerberos.
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  krbConfigConfigMap:
+                    description: |-
+                      KrbConfig is the configmap selector for Kerberos config as string
+                      It must be set if either ccache or keytab is used.
+                    properties:
+                      key:
+                        description: The key to select.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the ConfigMap or its key must
+                          be defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  krbKeytabSecret:
+                    description: |-
+                      KrbKeytabSecret is the secret selector for Kerberos keytab
+                      Either ccache or keytab can be set to use Kerberos.
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  krbRealm:
+                    description: |-
+                      KrbRealm is the Kerberos realm used with Kerberos keytab
+                      It must be set if keytab is used.
+                    type: string
+                  krbServicePrincipalName:
+                    description: |-
+                      KrbServicePrincipalName is the principal name of Kerberos service
+                      It must be set if either ccache or keytab is used.
+                    type: string
+                  krbUsername:
+                    description: |-
+                      KrbUsername is the Kerberos username used with Kerberos keytab
+                      It must be set if keytab is used.
+                    type: string
+                  pathFormat:
+                    description: PathFormat is defines the format of path to store
+                      a file. Can reference workflow variables
+                    type: string
+                type: object
+              oss:
+                description: OSS stores artifact in a OSS-compliant object store
+                properties:
+                  accessKeySecret:
+                    description: AccessKeySecret is the secret selector to the bucket's
+                      access key
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  bucket:
+                    description: Bucket is the name of the bucket
+                    type: string
+                  createBucketIfNotPresent:
+                    description: CreateBucketIfNotPresent tells the driver to attempt
+                      to create the OSS bucket for output artifacts, if it doesn't
+                      exist
+                    type: boolean
+                  endpoint:
+                    description: Endpoint is the hostname of the bucket endpoint
+                    type: string
+                  keyFormat:
+                    description: KeyFormat defines the format of how to store keys
+                      and can reference workflow variables.
+                    type: string
+                  lifecycleRule:
+                    description: LifecycleRule specifies how to manage bucket's lifecycle
+                    properties:
+                      markDeletionAfterDays:
+                        description: MarkDeletionAfterDays is the number of days before
+                          we delete objects in the bucket
+                        format: int32
+                        type: integer
+                      markInfrequentAccessAfterDays:
+                        description: MarkInfrequentAccessAfterDays is the number of
+                          days before we convert the objects in the bucket to Infrequent
+                          Access (IA) storage type
+                        format: int32
+                        type: integer
+                    type: object
+                  secretKeySecret:
+                    description: SecretKeySecret is the secret selector to the bucket's
+                      secret key
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  securityToken:
+                    description: 'SecurityToken is the user''s temporary security
+                      token. For more details, check out: https://www.alibabacloud.com/help/doc-detail/100624.htm'
+                    type: string
+                  useSDKCreds:
+                    description: UseSDKCreds tells the driver to figure out credentials
+                      based on sdk defaults.
+                    type: boolean
+                type: object
+              plugin:
+                description: Plugin stores artifact in a plugin-specific artifact
+                  repository
+                properties:
+                  configuration:
+                    type: string
+                  keyFormat:
+                    type: string
+                  name:
+                    description: ArtifactPluginName is the name of an artifact plugin
+                    type: string
+                required:
+                - configuration
+                - name
+                type: object
+              s3:
+                description: S3 stores artifact in a S3-compliant object store
+                properties:
+                  accessKeySecret:
+                    description: AccessKeySecret is the secret selector to the bucket's
+                      access key
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  addressingStyle:
+                    description: |-
+                      AddressingStyle defines how buckets are addressed by the S3 client.
+                      This is required for some S3-compatible providers that only support
+                      virtual-hosted-style bucket addressing.
+
+                      Valid values are:
+                      - "" (default, auto-detect)
+                      - "path"
+                      - "virtual-hosted"
+                    enum:
+                    - ""
+                    - path
+                    - virtual-hosted
+                    type: string
+                  bucket:
+                    description: Bucket is the name of the bucket
+                    type: string
+                  caSecret:
+                    description: CASecret specifies the secret that contains the CA,
+                      used to verify the TLS connection
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  createBucketIfNotPresent:
+                    description: CreateBucketIfNotPresent tells the driver to attempt
+                      to create the S3 bucket for output artifacts, if it doesn't
+                      exist. Setting Enabled Encryption will apply either SSE-S3 to
+                      the bucket if KmsKeyId is not set or SSE-KMS if it is.
+                    properties:
+                      objectLocking:
+                        description: ObjectLocking Enable object locking
+                        type: boolean
+                    type: object
+                  encryptionOptions:
+                    description: S3EncryptionOptions used to determine encryption
+                      options during s3 operations
+                    properties:
+                      enableEncryption:
+                        description: EnableEncryption tells the driver to encrypt
+                          objects if set to true. If kmsKeyId and serverSideCustomerKeySecret
+                          are not set, SSE-S3 will be used
+                        type: boolean
+                      kmsEncryptionContext:
+                        description: KmsEncryptionContext is a json blob that contains
+                          an encryption context. See https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#encrypt_context
+                          for more information
+                        type: string
+                      kmsKeyId:
+                        description: KMSKeyId tells the driver to encrypt the object
+                          using the specified KMS Key.
+                        type: string
+                      serverSideCustomerKeySecret:
+                        description: ServerSideCustomerKeySecret tells the driver
+                          to encrypt the output artifacts using SSE-C with the specified
+                          secret.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  endpoint:
+                    description: Endpoint is the hostname of the bucket endpoint
+                    type: string
+                  insecure:
+                    description: Insecure will connect to the service with TLS
+                    type: boolean
+                  keyFormat:
+                    description: KeyFormat defines the format of how to store keys
+                      and can reference workflow variables.
+                    type: string
+                  keyPrefix:
+                    description: |-
+                      KeyPrefix is prefix used as part of the bucket key in which the controller will store artifacts.
+
+                      Deprecated: Use KeyFormat instead.
+                    type: string
+                  region:
+                    description: Region contains the optional bucket region
+                    type: string
+                  roleARN:
+                    description: RoleARN is the Amazon Resource Name (ARN) of the
+                      role to assume.
+                    type: string
+                  secretKeySecret:
+                    description: SecretKeySecret is the secret selector to the bucket's
+                      secret key
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  sessionTokenSecret:
+                    description: SessionTokenSecret is used for ephemeral credentials
+                      like an IAM assume role or S3 access grant
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  useSDKCreds:
+                    description: UseSDKCreds tells the driver to figure out credentials
+                      based on sdk defaults.
+                    type: boolean
+                type: object
+            type: object
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true

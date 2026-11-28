@@ -11,20 +11,6 @@ data:
   images: |
     docker/whalesay:latest:
        cmd: [cowsay]
-  artifactRepository: |
-    archiveLogs: true
-    plugin:
-      name: test
-      configuration: |
-        bucket: my-bucket
-        endpoint: minio:9000
-        insecure: true
-        accessKeySecret:
-          name: my-minio-cred
-          key: accesskey
-        secretKeySecret:
-          name: my-minio-cred
-          key: secretkey
   metricsConfig: |
     enabled: true
     path: /metrics

@@ -12,11 +12,16 @@ import (
 	"sigs.k8s.io/yaml"
 
 	wfv1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v4/pkg/client/clientset/versioned"
+	"github.com/argoproj/argo-workflows/v4/util/deprecation"
 	errorsutil "github.com/argoproj/argo-workflows/v4/util/errors"
 	"github.com/argoproj/argo-workflows/v4/util/logging"
 	"github.com/argoproj/argo-workflows/v4/util/retry"
 	waitutil "github.com/argoproj/argo-workflows/v4/util/wait"
 )
+
+// DefaultName is the name of the WorkflowArtifactRepository used when a workflow has no artifactRepositoryRef.
+const DefaultName = "default"
 
 type Interface interface {
 	// Resolve Figures out the correct repository to for a workflow.
@@ -25,38 +30,57 @@ type Interface interface {
 	Get(ctx context.Context, ref *wfv1.ArtifactRepositoryRefStatus) (*wfv1.ArtifactRepository, error)
 }
 
-func New(kubernetesInterface kubernetes.Interface, namespace string, defaultArtifactRepository *wfv1.ArtifactRepository) Interface {
-	return &artifactRepositories{kubernetesInterface, namespace, defaultArtifactRepository}
+func New(kubernetesInterface kubernetes.Interface, wfClientset versioned.Interface, namespace string, defaultArtifactRepository *wfv1.ArtifactRepository) Interface {
+	return &artifactRepositories{kubernetesInterface, wfClientset, namespace, defaultArtifactRepository}
 }
 
 type artifactRepositories struct {
 	kubernetesInterface       kubernetes.Interface
+	wfClientset               versioned.Interface
 	namespace                 string
 	defaultArtifactRepository *wfv1.ArtifactRepository
 }
 
 func (s *artifactRepositories) Resolve(ctx context.Context, ref *wfv1.ArtifactRepositoryRef, workflowNamespace string) (*wfv1.ArtifactRepositoryRefStatus, error) {
 	var refs []*wfv1.ArtifactRepositoryRefStatus
-	if ref != nil {
+	switch {
+	case ref != nil && ref.Name != "":
+		refs = []*wfv1.ArtifactRepositoryRefStatus{
+			{Namespace: workflowNamespace, ArtifactRepositoryRef: wfv1.ArtifactRepositoryRef{Name: ref.Name}},
+			{Namespace: s.namespace, ArtifactRepositoryRef: wfv1.ArtifactRepositoryRef{Name: ref.Name}},
+		}
+	case ref != nil:
 		refs = []*wfv1.ArtifactRepositoryRefStatus{
 			{Namespace: workflowNamespace, ArtifactRepositoryRef: wfv1.ArtifactRepositoryRef{ConfigMap: ref.ConfigMap, Key: ref.Key}},
 			{Namespace: s.namespace, ArtifactRepositoryRef: wfv1.ArtifactRepositoryRef{ConfigMap: ref.ConfigMap, Key: ref.Key}},
 		}
-	} else {
+	default:
 		refs = []*wfv1.ArtifactRepositoryRefStatus{
+			{Namespace: workflowNamespace, ArtifactRepositoryRef: wfv1.ArtifactRepositoryRef{Name: DefaultName}},
 			{Namespace: workflowNamespace},
+			{Namespace: s.namespace, ArtifactRepositoryRef: wfv1.ArtifactRepositoryRef{Name: DefaultName}},
 			{Default: true},
 		}
 	}
+	logger := logging.RequireLoggerFromContext(ctx)
 	for _, r := range refs {
 		resolvedRef, err := s.get(ctx, r)
-		if err != nil && (apierr.IsNotFound(err) || strings.Contains(err.Error(), "config map missing key")) {
+		// Forbidden: the controller or server may not yet have RBAC for WorkflowArtifactRepositories.
+		if err != nil && (apierr.IsNotFound(err) || (r.Name != "" && apierr.IsForbidden(err)) || strings.Contains(err.Error(), "config map missing key")) {
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf(`error getting config map for artifact repository ref "%v": %w`, r, err)
+			return nil, fmt.Errorf(`error getting artifact repository ref "%v": %w`, r, err)
 		}
-		logging.RequireLoggerFromContext(ctx).WithField("artifactRepositoryRef", r).Info(ctx, "resolved artifact repository")
+		logger.WithField("artifactRepositoryRef", r).Info(ctx, "resolved artifact repository")
+		switch {
+		case resolvedRef.Default && resolvedRef.ArtifactRepository.Get() != nil:
+			logger.Warn(ctx, "artifactRepository in the workflow-controller-configmap is deprecated, use a WorkflowArtifactRepository named default instead")
+			deprecation.Record(ctx, deprecation.ControllerConfigArtifactRepository)
+		case !resolvedRef.Default && resolvedRef.Name == "":
+			logger.WithField("artifactRepositoryRef", r).Warn(ctx, "artifact repository config maps are deprecated, use a WorkflowArtifactRepository instead")
+			deprecation.Record(ctx, deprecation.ArtifactRepositoryConfigMap)
+		}
 		return resolvedRef, nil
 	}
 	return nil, fmt.Errorf(`failed to find any artifact repository for artifact repository ref "%v"`, ref)
@@ -80,6 +104,22 @@ func (s *artifactRepositories) get(ctx context.Context, ref *wfv1.ArtifactReposi
 			Namespace:             ref.Namespace,
 			Default:               true,
 			ArtifactRepository:    s.defaultArtifactRepository,
+		}, nil
+	}
+	if ref.Name != "" {
+		var repo *wfv1.WorkflowArtifactRepository
+		err := waitutil.Backoff(retry.DefaultRetry(ctx), func() (bool, error) {
+			var err error
+			repo, err = s.wfClientset.ArgoprojV1alpha1().WorkflowArtifactRepositories(ref.Namespace).Get(ctx, ref.Name, metav1.GetOptions{})
+			return !errorsutil.IsTransientErrQuiet(ctx, err), err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &wfv1.ArtifactRepositoryRefStatus{
+			Namespace:             ref.Namespace,
+			ArtifactRepositoryRef: wfv1.ArtifactRepositoryRef{Name: ref.Name},
+			ArtifactRepository:    &repo.Spec,
 		}, nil
 	}
 	var cm *v1.ConfigMap

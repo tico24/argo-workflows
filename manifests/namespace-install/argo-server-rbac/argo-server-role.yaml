@@ -57,6 +57,7 @@ rules:
       - workflowtemplates
       - cronworkflows
       - cronworkflows/finalizers
+      - workflowartifactrepositories
     verbs:
       - create
       - get

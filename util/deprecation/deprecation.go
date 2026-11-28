@@ -25,12 +25,18 @@ type Type int
 
 const (
 	Undefined Type = iota
+	ArtifactRepositoryConfigMap
+	ControllerConfigArtifactRepository
 )
 
 func (t *Type) asString() string {
 	switch *t {
 	case Undefined:
 		return `undefined`
+	case ArtifactRepositoryConfigMap:
+		return `artifact repository configmap`
+	case ControllerConfigArtifactRepository:
+		return `controller configmap artifactRepository`
 	default:
 		return `unknown`
 	}

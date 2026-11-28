@@ -112,6 +112,7 @@ data:
 
   # artifactRepository defines the default location to be used as the artifact repository for
   # container artifacts.
+  # This is deprecated in v4.2, use a WorkflowArtifactRepository named default in the controller's namespace.
   artifactRepository: |
     # archiveLogs will archive the main container logs as an artifact
     archiveLogs: true

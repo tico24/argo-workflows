@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
@@ -30,7 +31,7 @@ func NewConvertCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "convert FILE...",
 		Short: "convert workflow manifests from legacy format to current format",
-		Long:  "Converts singular schedule, mutex and semaphore fields to the new plural versions, outputting to stdout",
+		Long:  "Converts singular schedule, mutex and semaphore fields to the new plural versions, and artifact repository config maps and artifactRepositoryRef keys to WorkflowArtifactRepositories, outputting to stdout",
 		Example: `
 # Convert manifests in a specified directory:
 
@@ -42,7 +43,11 @@ func NewConvertCommand() *cobra.Command {
 
 # Convert from stdin:
 
-  cat workflow.yaml | argo convert -`,
+  cat workflow.yaml | argo convert -
+
+# Convert artifact repository config maps:
+
+  kubectl get configmap workflow-controller-configmap artifact-repositories -n argo -o yaml | argo convert -`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConvert(cmd.Context(), args, output.String())
@@ -124,6 +129,22 @@ func convertDocument(data []byte, outputFormat string, isJSON bool) error {
 			return fmt.Errorf("failed to parse ClusterWorkflowTemplate: %w", err)
 		}
 		converted = legacy.ToCurrent()
+
+	case "ConfigMap":
+		var cm corev1.ConfigMap
+		if err := yaml.Unmarshal(data, &cm); err != nil {
+			return fmt.Errorf("failed to parse ConfigMap: %w", err)
+		}
+		objs, err := convert.ArtifactRepositoryConfigMap(&cm)
+		if err != nil {
+			return err
+		}
+		for _, obj := range objs {
+			if err := outputObject(obj, outputFormat, isJSON); err != nil {
+				return err
+			}
+		}
+		return nil
 
 	default:
 		// Unknown type - pass through unchanged

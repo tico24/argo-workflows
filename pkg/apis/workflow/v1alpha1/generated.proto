@@ -211,14 +211,20 @@ message ArtifactRepository {
   optional PluginArtifactRepository plugin = 8;
 }
 
-// ArtifactRepositoryRef is a reference to an artifact repository config map.
+// ArtifactRepositoryRef is a reference to an artifact repository.
 // +protobuf.options.(gogoproto.goproto_stringer)=false
 message ArtifactRepositoryRef {
   // The name of the config map. Defaults to "artifact-repositories".
+  // The config map is deprecated in v4.2, use name instead.
   optional string configMap = 1;
 
   // The config map key. Defaults to the value of the "workflows.argoproj.io/default-artifact-repository" annotation.
+  // The config map is deprecated in v4.2, use name instead.
   optional string key = 2;
+
+  // The name of a WorkflowArtifactRepository in the workflow's namespace or the controller's namespace.
+  // If set, configMap and key are ignored.
+  optional string name = 3;
 }
 
 // ArtifactRepositoryRefStatus is the resolved artifact repository reference with namespace info.
@@ -226,7 +232,7 @@ message ArtifactRepositoryRef {
 message ArtifactRepositoryRefStatus {
   optional ArtifactRepositoryRef artifactRepositoryRef = 1;
 
-  // The namespace of the config map. Defaults to the workflow's namespace, or the controller's namespace (if found).
+  // The namespace of the config map or WorkflowArtifactRepository. Defaults to the workflow's namespace, or the controller's namespace (if found).
   optional string namespace = 2;
 
   // If this ref represents the default artifact repository, rather than a config map.
@@ -2051,6 +2057,25 @@ message WorkflowArtifactGCTaskList {
   optional .k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
 
   repeated WorkflowArtifactGCTask items = 2;
+}
+
+// WorkflowArtifactRepository is an artifact repository that workflows can refer to by name.
+// One named "default" is used by workflows that do not set artifactRepositoryRef.
+// +genclient
+// +kubebuilder:resource:shortName=wfar
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+message WorkflowArtifactRepository {
+  optional .k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  optional ArtifactRepository spec = 2;
+}
+
+// WorkflowArtifactRepositoryList is list of WorkflowArtifactRepository resources
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+message WorkflowArtifactRepositoryList {
+  optional .k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
+
+  repeated WorkflowArtifactRepository items = 2;
 }
 
 // WorkflowEventBinding is the definition of an event resource

@@ -18,11 +18,7 @@ Subsequent sections will show how to use it.
 | Raw | Yes | No | No |
 | S3 | Yes | Yes | Yes |
 
-The actual repository used by a workflow is chosen by the following rules:
-
-1. Anything explicitly configured using [Artifact Repository Ref](artifact-repository-ref.md). This is the most flexible, safe, and secure option.
-2. From a config map named `artifact-repositories` if it has the `workflows.argoproj.io/default-artifact-repository` annotation in the workflow's namespace.
-3. From a workflow controller config-map.
+A workflow uses the WorkflowArtifactRepository it names in `artifactRepositoryRef`, or otherwise the [default artifact repository](artifact-repository-ref.md#default-artifact-repository).
 
 ## Security
 
@@ -461,35 +457,30 @@ $ # create secret in demo namespace, replace demo with your namespace.
 $ kubectl create secret generic $mybucket-credentials -n demo\
   --from-literal "accessKey=$(cat access-key.json | jq -r .AccessKey.AccessKeyId)" \
   --from-literal "secretKey=$(cat access-key.json | jq -r .AccessKey.AccessKeySecret)"
-$ # create configmap to config default artifact for a namespace.
+$ # create the default artifact repository for a namespace.
 $ cat > default-artifact-repository.yaml << EOF
-apiVersion: v1
-kind: ConfigMap
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
 metadata:
-  # If you want to use this config map by default, name it "artifact-repositories". Otherwise, you can provide a reference to a
-  # different config map in `artifactRepositoryRef.configMap`.
-  name: artifact-repositories
-  annotations:
-    # If you want to use a specific key, put that key into this annotation.
-    workflows.argoproj.io/default-artifact-repository: default-oss-artifact-repository
-data:
-  default-oss-artifact-repository: |
-    oss:
-      endpoint: http://oss-cn-zhangjiakou-internal.aliyuncs.com
-      bucket: $mybucket
-      # accessKeySecret and secretKeySecret are secret selectors.
-      # It references the k8s secret named 'bucket-workflow-artifect-credentials'.
-      # This secret is expected to have the keys 'accessKey'
-      # and 'secretKey', containing the base64 encoded credentials
-      # to the bucket.
-      accessKeySecret:
-        name: $mybucket-credentials
-        key: accessKey
-      secretKeySecret:
-        name: $mybucket-credentials
-        key: secretKey
+  # Workflows without an artifactRepositoryRef use the one named "default".
+  name: default
+spec:
+  oss:
+    endpoint: http://oss-cn-zhangjiakou-internal.aliyuncs.com
+    bucket: $mybucket
+    # accessKeySecret and secretKeySecret are secret selectors.
+    # It references the k8s secret named 'bucket-workflow-artifect-credentials'.
+    # This secret is expected to have the keys 'accessKey'
+    # and 'secretKey', containing the base64 encoded credentials
+    # to the bucket.
+    accessKeySecret:
+      name: $mybucket-credentials
+      key: accessKey
+    secretKeySecret:
+      name: $mybucket-credentials
+      key: secretKey
 EOF
-# create cm in demo namespace, replace demo with your namespace.
+# create it in demo namespace, replace demo with your namespace.
 $ k apply -f default-artifact-repository.yaml -n demo
 ```
 
@@ -502,7 +493,7 @@ If you wish to use OSS RRSA instead of passing in an `accessKey` and `secretKey`
 - Install [pod-identity-webhook](https://www.alibabacloud.com/help/en/ack/product-overview/ack-pod-identity-webhook) in your cluster to automatically inject the OIDC tokens and environment variables.
 - Add the label `pod-identity.alibabacloud.com/injection: 'on'` to the target workflow namespace.
 - Add the annotation `pod-identity.alibabacloud.com/role-name: $your_ram_role_name` to the service account of running workflow.
-- Set `useSDKCreds: true` in your target artifact repository cm and remove the secret references to AK/SK.
+- Set `useSDKCreds: true` in your target artifact repository and remove the secret references to AK/SK.
 
 ```yaml
 
@@ -523,21 +514,16 @@ metadata:
     pod-identity.alibabacloud.com/role-name: $your_ram_role_name
 
 ---
-apiVersion: v1
-kind: ConfigMap
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
 metadata:
-  # If you want to use this config map by default, name it "artifact-repositories". Otherwise, you can provide a reference to a
-  # different config map in `artifactRepositoryRef.configMap`.
-  name: artifact-repositories
-  annotations:
-    # If you want to use a specific key, put that key into this annotation.
-    workflows.argoproj.io/default-artifact-repository: default-oss-artifact-repository
-data:
-  default-oss-artifact-repository: |
-    oss:
-      endpoint: http://oss-cn-zhangjiakou-internal.aliyuncs.com
-      bucket: $mybucket
-      useSDKCreds: true
+  name: default
+  namespace: my-ns
+spec:
+  oss:
+    endpoint: http://oss-cn-zhangjiakou-internal.aliyuncs.com
+    bucket: $mybucket
+    useSDKCreds: true
 ```
 
 ## Configuring Azure Blob Storage
@@ -660,9 +646,10 @@ You can also use a [Shared Access Signature (SAS)](https://learn.microsoft.com/e
 
 ## Configure the Default Artifact Repository
 
-In order for Argo to use your artifact repository, you can configure it as the
-default repository. Edit the workflow-controller config map with the correct
-endpoint and access/secret keys for your repository.
+In order for Argo to use your artifact repository, you can configure it as the default repository.
+Create a WorkflowArtifactRepository named `default` with the correct endpoint and access/secret keys for your repository.
+Create it in the controller's namespace to make it the default for every namespace, or in a workflow's namespace to make it the default for that namespace.
+The `artifactRepository` in the `workflow-controller-configmap` is [deprecated](deprecations.md#controller-configmap-artifactrepository).
 
 The key format (`keyFormat`, `blobNameFormat` for Azure, `pathFormat` for HDFS) can reference workflow variables.
 If you don't set one, artifacts are stored under `{{workflow.name}}/{{node.taskName}}`.
@@ -672,7 +659,7 @@ For Artifactory, the key always starts with the repository URL.
 `{{node.taskName}}` names the attempt: for pod templates it is the pod name, the same value as `{{pod.name}}`, so each attempt gets its own key.
 A key format that uses `{{node.taskName}}` needs a v4.2 or later controller.
 An earlier controller can't resolve `{{node.taskName}}`, so it doesn't create a pod that stores logs or artifacts under that key format, and the node errors with `failed to resolve {{node.taskName}}`.
-If you might roll the controller back to an earlier version, don't use it in any key format, whether in the `workflow-controller-configmap` or in a namespace's `artifact-repositories` configmap.
+If you might roll the controller back to an earlier version, don't use it in any key format, whether in a WorkflowArtifactRepository, the `workflow-controller-configmap` or a namespace's `artifact-repositories` configmap.
 
 ### S3 compatible artifact repository bucket (such as AWS, GCS, MinIO, and Alibaba Cloud OSS)
 
@@ -714,24 +701,26 @@ For Alibaba Cloud OSS, the `accessKeySecret` and `secretKeySecret` corresponds t
 
 Example:
 
-```bash
-$ kubectl edit configmap workflow-controller-configmap -n argo  # assumes argo was installed in the argo namespace
-...
-data:
-  artifactRepository: |
-    s3:
-      bucket: my-bucket
-      keyFormat: prefix/in/bucket     #optional
-      endpoint: my-minio-endpoint.default:9000        #AWS => s3.amazonaws.com; GCS => storage.googleapis.com
-      insecure: true                  #omit for S3/GCS. Needed when minio runs without TLS
-      accessKeySecret:                #omit if accessing via AWS IAM
-        name: my-minio-cred
-        key: accessKey
-      secretKeySecret:                #omit if accessing via AWS IAM
-        name: my-minio-cred
-        key: secretKey
-      useSDKCreds: true               #tells argo to use AWS SDK's default provider chain, enable for things like IRSA support
-      addressingStyle: "virtual-hosted" #optional; "" (auto-detect, default), "path", or "virtual-hosted". Set for providers that only support virtual-hosted-style addressing
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
+metadata:
+  name: default
+  namespace: argo # assumes argo was installed in the argo namespace
+spec:
+  s3:
+    bucket: my-bucket
+    keyFormat: prefix/in/bucket     #optional
+    endpoint: my-minio-endpoint.default:9000        #AWS => s3.amazonaws.com; GCS => storage.googleapis.com
+    insecure: true                  #omit for S3/GCS. Needed when minio runs without TLS
+    accessKeySecret:                #omit if accessing via AWS IAM
+      name: my-minio-cred
+      key: accessKey
+    secretKeySecret:                #omit if accessing via AWS IAM
+      name: my-minio-cred
+      key: secretKey
+    useSDKCreds: true               #tells argo to use AWS SDK's default provider chain, enable for things like IRSA support
+    addressingStyle: "virtual-hosted" #optional; "" (auto-detect, default), "path", or "virtual-hosted". Set for providers that only support virtual-hosted-style addressing
 ```
 
 The secrets are retrieved from the namespace you use to run your workflows. Note
@@ -751,17 +740,19 @@ service account key to access the bucket.
 
 Example:
 
-```bash
-$ kubectl edit configmap workflow-controller-configmap -n argo  # assumes argo was installed in the argo namespace
-...
-data:
-  artifactRepository: |
-    gcs:
-      bucket: my-bucket
-      keyFormat: prefix/in/bucket/{{workflow.name}}/{{node.taskName}}     #it should reference workflow variables, such as "{{workflow.name}}/{{node.taskName}}"
-      serviceAccountKeySecret:
-        name: my-gcs-credentials
-        key: serviceAccountKey
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
+metadata:
+  name: default
+  namespace: argo # assumes argo was installed in the argo namespace
+spec:
+  gcs:
+    bucket: my-bucket
+    keyFormat: prefix/in/bucket/{{workflow.name}}/{{node.taskName}}     #it should reference workflow variables, such as "{{workflow.name}}/{{node.taskName}}"
+    serviceAccountKeySecret:
+      name: my-gcs-credentials
+      key: serviceAccountKey
 ```
 
 ### Azure Blob Storage
@@ -773,17 +764,19 @@ Storage account shared key to access the container.
 
 Example:
 
-```bash
-$ kubectl edit configmap workflow-controller-configmap -n argo  # assumes argo was installed in the argo namespace
-...
-data:
-  artifactRepository: |
-    azure:
-      container: my-container
-      blobNameFormat: prefix/in/container/{{workflow.name}}/{{node.taskName}}     #it should reference workflow variables, such as "{{workflow.name}}/{{node.taskName}}"
-      accountKeySecret:
-        name: my-azure-storage-credentials
-        key: account-access-key
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
+metadata:
+  name: default
+  namespace: argo # assumes argo was installed in the argo namespace
+spec:
+  azure:
+    container: my-container
+    blobNameFormat: prefix/in/container/{{workflow.name}}/{{node.taskName}}     #it should reference workflow variables, such as "{{workflow.name}}/{{node.taskName}}"
+    accountKeySecret:
+      name: my-azure-storage-credentials
+      key: account-access-key
 ```
 
 ## Accessing Non-Default Artifact Repositories
