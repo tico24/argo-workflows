@@ -1537,13 +1537,18 @@ func (a *ArtifactLocation) GetKey() (string, error) {
 	return v.GetKey()
 }
 
-// ArtifactRepositoryRef is a reference to an artifact repository config map.
+// ArtifactRepositoryRef is a reference to an artifact repository.
 // +protobuf.options.(gogoproto.goproto_stringer)=false
 type ArtifactRepositoryRef struct {
 	// The name of the config map. Defaults to "artifact-repositories".
+	// The config map is deprecated in v4.2, use name instead.
 	ConfigMap string `json:"configMap,omitempty" protobuf:"bytes,1,opt,name=configMap"`
 	// The config map key. Defaults to the value of the "workflows.argoproj.io/default-artifact-repository" annotation.
+	// The config map is deprecated in v4.2, use name instead.
 	Key string `json:"key,omitempty" protobuf:"bytes,2,opt,name=key"`
+	// The name of a WorkflowArtifactRepository in the workflow's namespace or the controller's namespace.
+	// If set, configMap and key are ignored.
+	Name string `json:"name,omitempty" protobuf:"bytes,3,opt,name=name"`
 }
 
 func (r *ArtifactRepositoryRef) GetConfigMapOr(configMap string) string {
@@ -1564,6 +1569,9 @@ func (r *ArtifactRepositoryRef) String() string {
 	if r == nil {
 		return "nil"
 	}
+	if r.Name != "" {
+		return r.Name
+	}
 	return fmt.Sprintf("%s#%s", r.ConfigMap, r.Key)
 }
 
@@ -1571,7 +1579,7 @@ func (r *ArtifactRepositoryRef) String() string {
 // +protobuf.options.(gogoproto.goproto_stringer)=false
 type ArtifactRepositoryRefStatus struct {
 	ArtifactRepositoryRef `json:",inline" protobuf:"bytes,1,opt,name=artifactRepositoryRef"`
-	// The namespace of the config map. Defaults to the workflow's namespace, or the controller's namespace (if found).
+	// The namespace of the config map or WorkflowArtifactRepository. Defaults to the workflow's namespace, or the controller's namespace (if found).
 	Namespace string `json:"namespace,omitempty" protobuf:"bytes,2,opt,name=namespace"`
 	// If this ref represents the default artifact repository, rather than a config map.
 	Default bool `json:"default,omitempty" protobuf:"varint,3,opt,name=default"`

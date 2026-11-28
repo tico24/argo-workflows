@@ -58,6 +58,7 @@ rules:
   - workflowtemplates/finalizers
   - clusterworkflowtemplates
   - clusterworkflowtemplates/finalizers
+  - workflowartifactrepositories
   verbs:
   - get
   - list

@@ -5,7 +5,7 @@ metadata:
 spec:
   entrypoint: main
   artifactRepositoryRef:
-    key: my-key
+    name: my-repo
   templates:
     - name: main
       container:

@@ -63,6 +63,7 @@ rules:
     resources:
       - workflowtemplates
       - workflowtemplates/finalizers
+      - workflowartifactrepositories
     verbs:
       - get
       - list

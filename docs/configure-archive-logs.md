@@ -4,13 +4,13 @@
     We do not recommend relying on Argo to archive logs as it is naive and not purpose-built for indexing, searching, and storing logs.
     This feature is provided as a convenience to quickly view logs of garbage collected Pods in the Argo UI, but we [recommend](#suggested-alternatives) you integrate a dedicated, Kubernetes-aware logging facility.
 
-To enable automatic pipeline logging, you need to configure `archiveLogs` at workflow-controller config-map, workflow spec, or template level. You also need to configure [Artifact Repository](configure-artifact-repository.md) to define where this logging artifact is stored.
+To enable automatic pipeline logging, you need to configure `archiveLogs` at artifact repository, workflow spec, or template level. You also need to configure [Artifact Repository](configure-artifact-repository.md) to define where this logging artifact is stored.
 
 Archive logs follows priorities:
 
-workflow-controller config (on) > workflow spec (on/off) > template (on/off)
+artifact repository (on) > workflow spec (on/off) > template (on/off)
 
-| Controller Config Map | Workflow Spec | Template | are we archiving logs? |
+| Artifact Repository   | Workflow Spec | Template | are we archiving logs? |
 |-----------------------|---------------|----------|------------------------|
 | true                  | true          | true     | true                   |
 | true                  | true          | false    | true                   |
@@ -21,9 +21,9 @@ workflow-controller config (on) > workflow spec (on/off) > template (on/off)
 | false                 | false         | true     | true                   |
 | false                 | false         | false    | false                  |
 
-## Configuring Workflow Controller Config Map
+## Configuring the Artifact Repository
 
-See [Workflow Controller Config Map](workflow-controller-configmap.md)
+Set `archiveLogs: true` in the [artifact repository](artifact-repository-ref.md).
 
 ## Configuring Workflow Spec
 

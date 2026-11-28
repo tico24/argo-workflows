@@ -408,6 +408,39 @@ func (s *FunctionalSuite) TestEventOnPVCFail() {
 		)
 }
 
+func (s *FunctionalSuite) TestArtifactRepositoryRefName() {
+	s.Given().
+		Workflow("@testdata/artifact-repository-ref-name.yaml").
+		When().
+		SubmitWorkflow().
+		WaitForWorkflow().
+		Then().
+		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
+			assert.Equal(t, wfv1.WorkflowSucceeded, status.Phase)
+			require.NotEmpty(t, status.ArtifactRepositoryRef)
+			assert.Equal(t, "argo", status.ArtifactRepositoryRef.Namespace)
+			assert.Equal(t, "my-repo", status.ArtifactRepositoryRef.Name)
+			assert.Empty(t, status.ArtifactRepositoryRef.ConfigMap)
+			assert.False(t, status.ArtifactRepositoryRef.Default)
+		})
+}
+
+func (s *FunctionalSuite) TestDefaultWorkflowArtifactRepository() {
+	s.Given().
+		Workflow("@testdata/artifact-repository-default.yaml").
+		When().
+		SubmitWorkflow().
+		WaitForWorkflow().
+		Then().
+		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
+			assert.Equal(t, wfv1.WorkflowSucceeded, status.Phase)
+			require.NotEmpty(t, status.ArtifactRepositoryRef)
+			assert.Equal(t, "argo", status.ArtifactRepositoryRef.Namespace)
+			assert.Equal(t, "default", status.ArtifactRepositoryRef.Name)
+			assert.False(t, status.ArtifactRepositoryRef.Default)
+		})
+}
+
 func (s *FunctionalSuite) TestArtifactRepositoryRef() {
 	s.Given().
 		Workflow("@testdata/artifact-repository-ref.yaml").

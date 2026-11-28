@@ -81,6 +81,11 @@ type LegacyWorkflowSpec struct {
 func (lws *LegacyWorkflowSpec) ToCurrent() wfv1.WorkflowSpec {
 	spec := lws.WorkflowSpec
 
+	// Convert artifact repository config map key to WorkflowArtifactRepository name
+	if ref := spec.ArtifactRepositoryRef; ref != nil && ref.Name == "" && ref.Key != "" {
+		spec.ArtifactRepositoryRef = &wfv1.ArtifactRepositoryRef{Name: ref.Key}
+	}
+
 	// Convert synchronization
 	if lws.Synchronization != nil {
 		spec.Synchronization = lws.Synchronization.ToCurrent()

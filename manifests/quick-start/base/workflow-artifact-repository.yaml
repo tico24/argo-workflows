@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
+metadata:
+  # Workflows that do not set artifactRepositoryRef use the WorkflowArtifactRepository named "default".
+  name: default
+spec:
+  archiveLogs: true
+  s3:
+    bucket: my-bucket
+    endpoint: minio:9000
+    insecure: true
+    accessKeySecret:
+      name: my-minio-cred
+      key: accesskey
+    secretKeySecret:
+      name: my-minio-cred
+      key: secretkey
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
+metadata:
+  name: my-repo
+spec:
+  archiveLogs: true
+  s3:
+    bucket: my-bucket
+    endpoint: minio:9000
+    insecure: true
+    accessKeySecret:
+      name: my-minio-cred
+      key: accesskey
+    secretKeySecret:
+      name: my-minio-cred
+      key: secretkey

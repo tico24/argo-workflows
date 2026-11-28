@@ -43,6 +43,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&WorkflowArtifactGCTaskList{},
 		&WorkflowTaskResult{},
 		&WorkflowTaskResultList{},
+		&WorkflowArtifactRepository{},
+		&WorkflowArtifactRepositoryList{},
 		&WorkflowArtifactGCTask{},
 		&WorkflowArtifactGCTaskList{},
 	)

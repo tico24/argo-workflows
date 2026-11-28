@@ -1,0 +1,18 @@
+# A WorkflowArtifactRepository that workflows refer to with artifactRepositoryRef.name.
+# Name it "default" to use it for workflows that don't set artifactRepositoryRef.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
+metadata:
+  name: my-repo
+spec:
+  archiveLogs: true
+  s3:
+    bucket: my-bucket
+    endpoint: minio:9000
+    insecure: true
+    accessKeySecret:
+      name: my-minio-cred
+      key: accesskey
+    secretKeySecret:
+      name: my-minio-cred
+      key: secretkey

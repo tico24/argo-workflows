@@ -279,6 +279,10 @@ func (*WorkflowArtifactGCTask) ProtoMessage() {}
 
 func (*WorkflowArtifactGCTaskList) ProtoMessage() {}
 
+func (*WorkflowArtifactRepository) ProtoMessage() {}
+
+func (*WorkflowArtifactRepositoryList) ProtoMessage() {}
+
 func (*WorkflowEventBinding) ProtoMessage() {}
 
 func (*WorkflowEventBindingList) ProtoMessage() {}

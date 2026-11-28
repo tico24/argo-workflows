@@ -11,7 +11,62 @@ If the metric is not present or no longer increasing are no longer using the mon
 
 ## Deprecated features
 
-There are currently no deprecated features.
+These features are deprecated in v4.2 and still work.
+
+### `artifact repository configmap`
+
+Artifact repository config maps, and the `configMap` and `key` fields of `artifactRepositoryRef`, are replaced by WorkflowArtifactRepositories.
+Create a WorkflowArtifactRepository for each config map key and refer to it with `artifactRepositoryRef.name`.
+Name the one you want as the default `default`, in place of the `workflows.argoproj.io/default-artifact-repository` annotation.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: artifact-repositories
+  annotations:
+    workflows.argoproj.io/default-artifact-repository: my-key
+data:
+  my-key: |
+    s3:
+      bucket: my-bucket
+```
+
+is replaced with
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowArtifactRepository
+metadata:
+  name: default
+spec:
+  s3:
+    bucket: my-bucket
+```
+
+and `artifactRepositoryRef` with `key: my-key` is replaced with `name: default`.
+See [Artifact Repository Ref](artifact-repository-ref.md).
+
+[`argo convert`](cli/argo_convert.md) converts artifact repository config maps and `artifactRepositoryRef` keys for you:
+
+```bash
+kubectl get configmap artifact-repositories -n my-ns -o yaml | argo convert - | kubectl apply -f -
+argo convert my-workflow.yaml
+```
+
+It writes one WorkflowArtifactRepository per config map key, named after the key, and writes the default key a second time as `default`.
+It changes `artifactRepositoryRef` with a `key` to `name` set to that key.
+It converts config maps named `artifact-repositories` and config maps with the `workflows.argoproj.io/default-artifact-repository` annotation.
+
+### `controller configmap artifactRepository`
+
+The `artifactRepository` in the `workflow-controller-configmap` is replaced by a WorkflowArtifactRepository named `default` in the controller's namespace.
+Move the value of `artifactRepository` into the `spec` of that WorkflowArtifactRepository.
+[`argo convert`](cli/argo_convert.md) does this for you, writing the config map without `artifactRepository` and the WorkflowArtifactRepository:
+
+```bash
+kubectl get configmap workflow-controller-configmap -n argo -o yaml | argo convert - | kubectl apply -f -
+```
 
 ## Removed features
 

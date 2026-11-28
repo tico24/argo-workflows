@@ -133,6 +133,8 @@ Deprecated features are [explained here](deprecations.md).
 
 `feature` will be one of:
 
+- [`artifact repository configmap`](deprecations.md#artifact-repository-configmap)
+- [`controller configmap artifactRepository`](deprecations.md#controller-configmap-artifactrepository)
 - [`cronworkflow schedule`](deprecations.md#cronworkflow-schedule)
 - [`synchronization mutex`](deprecations.md#synchronization-mutex)
 - [`synchronization semaphore`](deprecations.md#synchronization-semaphore)

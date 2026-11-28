@@ -1705,7 +1705,7 @@ WorkflowLevelArtifactGC describes how to delete artifacts from completed Workflo
 
 ## ArtifactRepositoryRef
 
-ArtifactRepositoryRef is a reference to an artifact repository config map.
+ArtifactRepositoryRef is a reference to an artifact repository.
 
 <details markdown>
 <summary>Examples with this field (click to open)</summary>
@@ -1716,8 +1716,9 @@ ArtifactRepositoryRef is a reference to an artifact repository config map.
 ### Fields
 | Field Name | Field Type | Description   |
 |:----------:|:----------:|---------------|
-|`configMap`|`string`|The name of the config map. Defaults to "artifact-repositories".|
-|`key`|`string`|The config map key. Defaults to the value of the "workflows.argoproj.io/default-artifact-repository" annotation.|
+|`configMap`|`string`|The name of the config map. Defaults to "artifact-repositories". The config map is deprecated in v4.2, use name instead.|
+|`key`|`string`|The config map key. Defaults to the value of the "workflows.argoproj.io/default-artifact-repository" annotation. The config map is deprecated in v4.2, use name instead.|
+|`name`|`string`|The name of a WorkflowArtifactRepository in the workflow's namespace or the controller's namespace. If set, configMap and key are ignored.|
 
 ## ExecutorConfig
 
@@ -2447,10 +2448,11 @@ ArtifactRepositoryRefStatus is the resolved artifact repository reference with n
 | Field Name | Field Type | Description   |
 |:----------:|:----------:|---------------|
 |`artifactRepository`|[`ArtifactRepository`](#artifactrepository)|The repository the workflow will use.|
-|`configMap`|`string`|The name of the config map. Defaults to "artifact-repositories".|
+|`configMap`|`string`|The name of the config map. Defaults to "artifact-repositories". The config map is deprecated in v4.2, use name instead.|
 |`default`|`boolean`|If this ref represents the default artifact repository, rather than a config map.|
-|`key`|`string`|The config map key. Defaults to the value of the "workflows.argoproj.io/default-artifact-repository" annotation.|
-|`namespace`|`string`|The namespace of the config map. Defaults to the workflow's namespace, or the controller's namespace (if found).|
+|`key`|`string`|The config map key. Defaults to the value of the "workflows.argoproj.io/default-artifact-repository" annotation. The config map is deprecated in v4.2, use name instead.|
+|`name`|`string`|The name of a WorkflowArtifactRepository in the workflow's namespace or the controller's namespace. If set, configMap and key are ignored.|
+|`namespace`|`string`|The namespace of the config map or WorkflowArtifactRepository. Defaults to the workflow's namespace, or the controller's namespace (if found).|
 
 ## Condition
 
